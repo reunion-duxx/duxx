@@ -1,0 +1,881 @@
+/* 8bit像素风格样式 */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Press Start 2P', monospace;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: #fff;
+    font-size: 12px;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    /* 防止移动端双击缩放 */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* 游戏包装容器 */
+.game-wrapper {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.game-container {
+    background: #2c3e50;
+    border: 4px solid #000;
+    box-shadow:
+        0 0 0 4px #fff,
+        0 0 0 8px #000,
+        8px 8px 0 8px rgba(0, 0, 0, 0.3);
+    padding: 20px;
+    text-align: center;
+}
+
+.game-title {
+    font-size: 24px;
+    color: #f39c12;
+    text-shadow:
+        4px 4px 0 #000,
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+}
+
+/* 菜单屏幕 */
+.menu-screen {
+    padding: 40px;
+}
+
+/* 游戏屏幕 */
+.game-screen {
+    position: relative;
+}
+
+/* 左侧状态栏 */
+.left-sidebar {
+    width: 220px;
+    background: #34495e;
+    border: 4px solid #000;
+    padding: 10px;
+    font-size: 9px;
+    max-height: 600px;
+    overflow-y: auto;
+    box-shadow: 4px 4px 0 #000;
+    flex-shrink: 0;
+}
+
+.sidebar-section {
+    margin-bottom: 15px;
+}
+
+.sidebar-section h3 {
+    font-size: 10px;
+    color: #f39c12;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #000;
+}
+
+.sidebar-section div {
+    line-height: 1.6;
+}
+
+/* 游戏主区域 */
+.game-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#gameCanvas {
+    display: block;
+    border: 4px solid #000;
+    background: #1a5c3c;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    max-width: 100%;
+    height: auto;
+    /* 防止触摸时的默认行为 */
+    touch-action: none;
+}
+
+/* 控制按钮 */
+.controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+/* 像素按钮 */
+.pixel-button {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    padding: 12px 24px;
+    background: #3498db;
+    color: #fff;
+    border: 4px solid #000;
+    box-shadow:
+        4px 4px 0 #000,
+        inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: all 0.1s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    min-width: 120px;
+}
+
+.pixel-button:hover {
+    background: #2980b9;
+    transform: translate(1px, 1px);
+    box-shadow:
+        2px 2px 0 #000,
+        inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.pixel-button:active {
+    transform: translate(4px, 4px);
+    box-shadow:
+        0 0 0 #000,
+        inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.pixel-button.small {
+    padding: 8px 16px;
+    font-size: 10px;
+    min-width: 90px;
+}
+
+.pixel-button:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* 豪赌按钮样式 */
+.gamble-btn {
+    background: #f39c12 !important;
+}
+
+.gamble-btn:hover:not(:disabled) {
+    background: #e67e22 !important;
+}
+
+.gamble-btn:disabled,
+.gamble-btn.active {
+    background: #e74c3c !important;
+    color: #fff !important;
+    cursor: not-allowed;
+}
+
+/* 弹窗 */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #34495e;
+    border: 4px solid #000;
+    box-shadow:
+        0 0 0 4px #fff,
+        0 0 0 8px #000;
+    padding: 30px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    text-align: center;
+}
+
+.modal-content h2 {
+    font-size: 18px;
+    color: #f39c12;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.modal-content p {
+    font-size: 12px;
+    line-height: 1.8;
+    margin-bottom: 20px;
+}
+
+/* 商店道具卡片 */
+.shop-items {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.shop-item {
+    background: #2c3e50;
+    border: 3px solid #000;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.shop-item:hover {
+    background: #34495e;
+    transform: scale(1.05);
+}
+
+.shop-item.negative {
+    border-color: #e74c3c;
+    background: #c0392b;
+}
+
+.shop-item.permanent {
+    border-color: #f39c12;
+    background: #d68910;
+}
+
+.shop-item-name {
+    font-size: 11px;
+    color: #ecf0f1;
+    margin-bottom: 8px;
+}
+
+.shop-item-desc {
+    font-size: 8px;
+    color: #bdc3c7;
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.shop-item-price {
+    font-size: 10px;
+    color: #f39c12;
+    font-weight: bold;
+}
+
+.shop-item-price.negative-price {
+    color: #2ecc71;
+}
+
+/* 玩家道具栏 */
+.player-items {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+    min-height: 150px;
+}
+
+.player-item {
+    background: #2c3e50;
+    border: 3px solid #16a085;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.player-item:hover {
+    background: #1abc9c;
+    transform: scale(1.05);
+}
+
+.player-item-name {
+    font-size: 10px;
+    color: #ecf0f1;
+    margin-bottom: 5px;
+}
+
+.player-item-count {
+    font-size: 8px;
+    color: #f39c12;
+}
+
+/* 空道具栏提示 */
+.empty-items {
+    grid-column: 1 / -1;
+    padding: 40px;
+    color: #7f8c8d;
+    font-size: 10px;
+}
+
+/* 特质选择 */
+.trait-description {
+    font-size: 10px;
+    color: #ecf0f1;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.trait-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.trait-option {
+    background: #2c3e50;
+    border: 3px solid #9b59b6;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.trait-option:hover {
+    background: #8e44ad;
+    transform: scale(1.05);
+    border-color: #f39c12;
+}
+
+.trait-name {
+    font-size: 11px;
+    color: #f39c12;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.trait-desc {
+    font-size: 8px;
+    color: #ecf0f1;
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* 响应式设计 - 平板 */
+@media (max-width: 1024px) {
+    .game-wrapper {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .left-sidebar {
+        width: 100%;
+        max-width: 600px;
+        max-height: 300px;
+        margin-bottom: 20px;
+    }
+}
+
+/* 响应式设计 - 手机 */
+@media (max-width: 768px) {
+    body {
+        font-size: 10px;
+        padding: 5px;
+        min-height: 100vh;
+        align-items: flex-start;
+        overflow-x: hidden;
+    }
+
+    .game-wrapper {
+        width: 100%;
+        gap: 10px;
+    }
+
+    .game-container {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #000;
+        box-shadow:
+            0 0 0 2px #fff,
+            0 0 0 4px #000,
+            4px 4px 0 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 左侧边栏在手机上收缩并可滚动 */
+    .left-sidebar {
+        width: 100%;
+        max-height: 200px;
+        font-size: 8px;
+        padding: 8px;
+        border: 2px solid #000;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .sidebar-section {
+        margin-bottom: 10px;
+    }
+
+    .sidebar-section h3 {
+        font-size: 9px;
+    }
+
+    /* Canvas自适应 - 移除固定尺寸覆盖 */
+    #gameCanvas {
+        width: auto !important;
+        max-width: 100%;
+        border: 2px solid #000;
+    }
+
+    .game-title {
+        font-size: 14px;
+        margin-bottom: 15px;
+    }
+
+    /* 菜单按钮 */
+    .menu-screen {
+        padding: 20px 10px;
+        width: 100%;
+    }
+
+    .pixel-button {
+        font-size: 9px;
+        padding: 12px 16px;
+        min-width: 80px;
+        width: 100%;
+        max-width: 280px;
+        margin: 5px auto;
+        /* 增大触摸区域 */
+        min-height: 44px;
+    }
+
+    .pixel-button.small {
+        font-size: 8px;
+        padding: 10px 12px;
+        min-width: 70px;
+        min-height: 40px;
+    }
+
+    /* 控制按钮 - 两列布局 */
+    .controls {
+        gap: 6px;
+        margin-top: 10px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .controls .pixel-button {
+        flex: 1 1 45%;
+        max-width: 48%;
+        min-width: 0;
+    }
+
+    /* 弹窗优化 */
+    .modal-content {
+        padding: 15px;
+        max-width: 95%;
+        max-height: 90vh;
+        border: 2px solid #000;
+        box-shadow:
+            0 0 0 2px #fff,
+            0 0 0 4px #000;
+    }
+
+    .modal-content h2 {
+        font-size: 12px;
+        margin-bottom: 15px;
+    }
+
+    .modal-content p {
+        font-size: 9px;
+        line-height: 1.6;
+        margin-bottom: 15px;
+    }
+
+    /* 商店道具 - 单列 */
+    .shop-items {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .shop-item {
+        padding: 12px;
+        border: 2px solid #000;
+    }
+
+    .shop-item-name {
+        font-size: 10px;
+    }
+
+    .shop-item-desc {
+        font-size: 7px;
+    }
+
+    .shop-item-price {
+        font-size: 9px;
+    }
+
+    /* 玩家道具栏 - 两列 */
+    .player-items {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .player-item {
+        padding: 10px;
+        border: 2px solid #16a085;
+    }
+
+    .player-item-name {
+        font-size: 9px;
+    }
+
+    .player-item-count {
+        font-size: 7px;
+    }
+
+    /* 教程提示框 */
+    .tutorial-hint-box {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        transform: none;
+        padding: 15px 20px;
+        max-width: none;
+        border: 2px solid #f39c12;
+        box-shadow:
+            0 0 0 2px #000,
+            0 0 10px rgba(243, 156, 18, 0.5);
+    }
+
+    .tutorial-hint-content h3 {
+        font-size: 11px;
+        margin-bottom: 10px;
+    }
+
+    .tutorial-hint-content p {
+        font-size: 9px;
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+
+    /* 金币显示 */
+    .coin-display {
+        font-size: 11px;
+        padding: 8px;
+        border: 2px solid #f39c12;
+    }
+
+    /* 卡牌商店 */
+    .card-shop-modal {
+        max-width: 95%;
+    }
+
+    .card-shop-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+
+    .card-shop-item {
+        padding: 8px 6px;
+        border: 2px solid #000;
+    }
+
+    .card-shop-rank {
+        font-size: 18px;
+        margin-bottom: 6px;
+    }
+
+    .card-shop-price {
+        font-size: 7px;
+    }
+
+    .shop-description {
+        font-size: 8px;
+        line-height: 1.4;
+    }
+
+    /* 提示建议 */
+    .hint-suggestions {
+        gap: 10px;
+        max-height: 300px;
+    }
+
+    .hint-card {
+        padding: 12px;
+        border: 2px solid #000;
+    }
+
+    .hint-card-title {
+        font-size: 11px;
+        margin-bottom: 8px;
+    }
+
+    .hint-card-cards {
+        font-size: 10px;
+        margin: 6px 0;
+    }
+
+    .hint-card-info {
+        font-size: 8px;
+        margin-top: 8px;
+    }
+
+    /* 滚动条在手机上变细 */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        border: 1px solid #000;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        border: 1px solid #000;
+    }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 480px) {
+    body {
+        font-size: 9px;
+    }
+
+    .game-title {
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+
+    .pixel-button {
+        font-size: 8px;
+        padding: 10px 12px;
+        letter-spacing: 0.5px;
+    }
+
+    .pixel-button.small {
+        font-size: 7px;
+        padding: 8px 10px;
+    }
+
+    .controls .pixel-button {
+        font-size: 7px;
+    }
+
+    .modal-content h2 {
+        font-size: 11px;
+    }
+
+    .modal-content p {
+        font-size: 8px;
+    }
+
+    .card-shop-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .card-shop-rank {
+        font-size: 16px;
+    }
+}
+
+/* 横屏优化 */
+@media (max-width: 900px) and (orientation: landscape) {
+    body {
+        align-items: center;
+    }
+
+    .game-wrapper {
+        flex-direction: row;
+        max-width: 100%;
+    }
+
+    .left-sidebar {
+        width: 200px;
+        max-height: 90vh;
+    }
+
+    .tutorial-hint-box {
+        max-width: 500px;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+    }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2c3e50;
+    border: 2px solid #000;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #3498db;
+    border: 2px solid #000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #2980b9;
+}
+
+/* 配对指南针提示样式 */
+.hint-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin: 20px 0;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.hint-card {
+    background: #34495e;
+    border: 3px solid #000;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hint-card:hover {
+    background: #3498db;
+    transform: translateX(5px);
+}
+
+.hint-card-title {
+    font-size: 14px;
+    color: #f39c12;
+    margin-bottom: 10px;
+}
+
+.hint-card-cards {
+    font-size: 12px;
+    color: #ecf0f1;
+    margin: 8px 0;
+    word-wrap: break-word;
+}
+
+.hint-card-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #95a5a6;
+    margin-top: 10px;
+}
+
+/* 教程提示框样式 */
+.tutorial-hint-box {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(52, 73, 94, 0.95);
+    border: 4px solid #f39c12;
+    box-shadow:
+        0 0 0 4px #000,
+        0 0 20px rgba(243, 156, 18, 0.5);
+    padding: 20px 30px;
+    max-width: 600px;
+    z-index: 2000;
+    text-align: center;
+}
+
+.tutorial-hint-content h3 {
+    font-size: 14px;
+    color: #f39c12;
+    margin-bottom: 12px;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.tutorial-hint-content p {
+    font-size: 11px;
+    color: #ecf0f1;
+    line-height: 1.8;
+    margin-bottom: 15px;
+}
+
+.tutorial-hint-content .pixel-button {
+    margin-top: 5px;
+}
+
+/* 金币显示样式 */
+.coin-display {
+    font-size: 14px;
+    color: #f39c12;
+    margin: 15px 0;
+    padding: 10px;
+    background: #2c3e50;
+    border: 3px solid #f39c12;
+    box-shadow: 2px 2px 0 #000;
+    text-align: center;
+}
+
+/* 卡牌商店模态框 */
+.card-shop-modal {
+    max-width: 800px;
+}
+
+.shop-description {
+    font-size: 10px;
+    color: #bdc3c7;
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+/* 卡牌商店网格 */
+.card-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.card-shop-item {
+    background: #2c3e50;
+    border: 3px solid #000;
+    padding: 12px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.card-shop-item:hover:not(.purchased) {
+    background: #34495e;
+    transform: scale(1.05);
+    border-color: #3498db;
+}
+
+.card-shop-item.purchased {
+    background: #27ae60;
+    border-color: #2ecc71;
+    cursor: default;
+}
+
+.card-shop-item.purchased:hover {
+    transform: none;
+}
+
+.card-shop-rank {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.card-shop-price {
+    font-size: 9px;
+    color: #f39c12;
+    margin-top: 5px;
+}
+
+.card-shop-item.purchased .card-shop-price {
+    color: #2ecc71;
+}
+

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>斗地主Roguelike</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-wrapper">
+        <!-- 左侧状态栏 -->
+        <div id="leftSidebar" class="left-sidebar" style="display: none;">
+            <div class="sidebar-section">
+                <h3>关卡积分</h3>
+                <div id="levelScoreInfo"></div>
+            </div>
+            <div class="sidebar-section">
+                <h3>牌型消耗</h3>
+                <div id="patternCosts"></div>
+            </div>
+            <div class="sidebar-section">
+                <h3>生效道具</h3>
+                <div id="activeEffects"></div>
+            </div>
+        </div>
+
+        <div class="game-container">
+        <!-- 主菜单 -->
+        <div id="mainMenu" class="menu-screen">
+            <button class="pixel-button" id="startGameBtn">开始游戏</button>
+            <button class="pixel-button" id="tutorialBtn">新手教程</button>
+            <button class="pixel-button" id="continueGameBtn">继续游戏</button>
+            <button class="pixel-button" id="cardShopBtn">卡牌商店</button>
+            <button class="pixel-button" id="resetGameBtn">重置存档</button>
+            <div class="coin-display" id="coinDisplay">💰 金币: 0</div>
+        </div>
+
+        <!-- 游戏画布 -->
+        <div id="gameScreen" class="game-screen" style="display: none;">
+            <!-- 游戏主区域 -->
+            <div class="game-main">
+                <canvas id="gameCanvas"></canvas>
+
+                <!-- 控制按钮 -->
+                <div class="controls">
+                    <button class="pixel-button small" id="playBtn">出牌</button>
+                    <button class="pixel-button small gamble-btn" id="gambleBtn" style="display: none;">🎲 豪赌</button>
+                    <button class="pixel-button small" id="discardBtn">弃牌</button>
+                    <button class="pixel-button small" id="endRoundBtn">结束回合</button>
+                    <button class="pixel-button small" id="sortByRankBtn">按点数</button>
+                    <button class="pixel-button small" id="sortBySuitBtn">按花色</button>
+                    <button class="pixel-button small" id="shopBtn">商店</button>
+                    <button class="pixel-button small" id="itemsBtn">道具</button>
+                    <button class="pixel-button small" id="audioToggleBtn">🔊 音效</button>
+                    <button class="pixel-button small" id="backToMenuBtn">返回菜单</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 商店弹窗 -->
+        <div id="shopModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>道具商店</h2>
+                <div id="shopItems" class="shop-items"></div>
+                <button class="pixel-button" id="closeShopBtn">关闭</button>
+            </div>
+        </div>
+
+        <!-- 道具栏弹窗 -->
+        <div id="itemsModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>我的道具</h2>
+                <div id="playerItems" class="player-items"></div>
+                <button class="pixel-button" id="closeItemsBtn">关闭</button>
+            </div>
+        </div>
+
+        <!-- 游戏结果弹窗 -->
+        <div id="resultModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2 id="resultTitle">结果</h2>
+                <p id="resultMessage"></p>
+                <button class="pixel-button" id="retryBtn">重试</button>
+                <button class="pixel-button" id="fallbackBtn">回退上一关</button>
+                <button class="pixel-button" id="nextLevelBtn" style="display: none;">下一关</button>
+            </div>
+        </div>
+
+        <!-- 配对指南针提示弹窗 -->
+        <div id="hintModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>最优出牌建议</h2>
+                <div id="hintSuggestions" class="hint-suggestions"></div>
+                <button class="pixel-button" id="closeHintBtn">关闭</button>
+            </div>
+        </div>
+
+        <!-- 卡牌商店弹窗 -->
+        <div id="cardShopModal" class="modal" style="display: none;">
+            <div class="modal-content card-shop-modal">
+                <h2>卡牌升级商店</h2>
+                <p class="shop-description">购买卡牌升级后，游戏中该点数的牌有30%概率出现升级版本，打出时额外获得+20积分</p>
+                <div class="coin-display" id="cardShopCoins">💰 金币: 0</div>
+                <div id="cardShopGrid" class="card-shop-grid"></div>
+                <button class="pixel-button" id="closeCardShopBtn">关闭</button>
+            </div>
+        </div>
+
+        <!-- 特质选择弹窗 -->
+        <div id="traitModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>选择特质</h2>
+                <p class="trait-description">选择一个特质，本关卡内生效</p>
+                <div id="traitOptions" class="trait-options"></div>
+            </div>
+        </div>
+
+        <!-- 教程提示框 -->
+        <div id="tutorialHintBox" class="tutorial-hint-box" style="display: none;">
+            <div class="tutorial-hint-content">
+                <h3 id="tutorialStepTitle">步骤 1/5</h3>
+                <p id="tutorialHintText">欢迎来到斗地主 Roguelike!</p>
+                <button class="pixel-button small" id="skipTutorialBtn">跳过教程</button>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- 脚本文件 -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/items.js"></script>
+    <script src="js/level.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/tutorial.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
