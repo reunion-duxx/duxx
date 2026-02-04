@@ -10,59 +10,27 @@ class TutorialManager {
         // 定义教程步骤
         this.steps = [
             {
-                id: 'select_card',
-                title: '步骤 1/7: 选择手牌',
-                hint: '欢迎来到斗地主 Roguelike! 这是你的手牌,点击卡牌可以选中它。试着选中任意一张牌!',
+                id: 'play_cards',
+                title: '步骤 1/10: 出牌',
+                hint: '欢迎来到斗地主 Roguelike! 点击选中一张牌,然后点击"出牌"按钮。符合斗地主牌型即可出牌(单牌、对子、三张、顺子等)。',
                 checkCompletion: () => {
-                    // 检查是否有选中的牌
-                    return this.game && this.game.input && this.game.input.selectedCards.length > 0;
+                    return this.completedSteps.has('play_cards');
                 },
                 onEnter: () => {
                     // 步骤1不需要特殊处理
                 }
             },
             {
-                id: 'play_single',
-                title: '步骤 2/7: 出单牌',
-                hint: '很好! 现在选中一张牌,然后点击"出牌"按钮。单牌消耗2点行动点。',
-                checkCompletion: () => {
-                    // 检查是否成功出了单牌
-                    return this.completedSteps.has('play_single');
-                },
-                onEnter: () => {
-                    // 清空选择
-                    if (this.game && this.game.input) {
-                        this.game.input.selectedCards = [];
-                    }
-                }
-            },
-            {
-                id: 'play_pair',
-                title: '步骤 3/7: 出对子',
-                hint: '做得好! 现在试着选中两张点数相同的牌 (比如两张3),然后出牌。对子消耗2点行动点。',
-                checkCompletion: () => {
-                    return this.completedSteps.has('play_pair');
-                },
-                onEnter: () => {
-                    if (this.game && this.game.input) {
-                        this.game.input.selectedCards = [];
-                    }
-                }
-            },
-            {
                 id: 'discard',
-                title: '步骤 4/7: 弃牌',
-                hint: '当行动点不足时,可以使用弃牌功能!选中1-5张牌,点击"弃牌"按钮,可以弃掉这些牌并抽取新牌。试试看! (注意:手牌需要大于5张才能弃牌)',
+                title: '步骤 2/10: 弃牌',
+                hint: '选中1-5张牌,点击"弃牌"按钮可以弃掉这些牌并抽取等量新牌(+奖励)。消耗弃牌点,同一回合内弃牌消耗递增(1点→2点→3点...)。手牌需大于5张才能弃牌。',
                 checkCompletion: () => {
                     return this.completedSteps.has('discard');
                 },
                 onEnter: () => {
-                    // 将行动点降至1,模拟行动点不足的情况
+                    // 确保有足够的手牌用于弃牌演示
                     if (this.game && this.game.state) {
-                        this.game.state.actionPoints = 1;
-                        // 确保有足够的手牌用于弃牌演示
                         if (this.game.state.handCards.length <= 5) {
-                            // 如果手牌不够,从牌库补充
                             while (this.game.state.handCards.length < 8 && this.game.state.deckCards.length > 0) {
                                 this.game.state.handCards.push(this.game.state.deckCards.pop());
                             }
@@ -74,52 +42,115 @@ class TutorialManager {
                 }
             },
             {
+                id: 'score',
+                title: '步骤 3/10: 积分',
+                hint: '出牌获得积分。不同牌型分数不同:单牌10分、对子20分、三张40分、顺子100分、炸弹200分、火箭300分等。积分用于商店购买道具。',
+                checkCompletion: () => {
+                    return this.completedSteps.has('score');
+                },
+                onEnter: () => {
+                    if (this.game && this.game.input) {
+                        this.game.input.selectedCards = [];
+                    }
+                    this.showNextStepButton('score');
+                }
+            },
+            {
+                id: 'action_discard_points',
+                title: '步骤 4/10: 行动点和弃牌点',
+                hint: '行动点:出牌消耗,不同牌型消耗不同(单牌2点、对子2点、炸弹5点等)。每回合结束后恢复满值。\n\n弃牌点:弃牌消耗,每回合获得2点(上限4点)。弃牌点可累积。',
+                checkCompletion: () => {
+                    return this.completedSteps.has('action_discard_points');
+                },
+                onEnter: () => {
+                    if (this.game && this.game.input) {
+                        this.game.input.selectedCards = [];
+                    }
+                    this.showNextStepButton('action_discard_points');
+                }
+            },
+            {
+                id: 'traits',
+                title: '步骤 5/10: 特质',
+                hint: '每局开始时从3个随机特质中选1个,整局生效。特质提供独特能力,如"精准打击"(单牌固定消耗1点但无法打顺子)、"炸弹专家"(炸弹积分+50%但消耗+2点)等。',
+                checkCompletion: () => {
+                    return this.completedSteps.has('traits');
+                },
+                onEnter: () => {
+                    if (this.game && this.game.input) {
+                        this.game.input.selectedCards = [];
+                    }
+                    this.showNextStepButton('traits');
+                }
+            },
+            {
+                id: 'combo',
+                title: '步骤 6/10: Combo连击',
+                hint: '连续出牌获得Combo加成! Combo x2:1.3倍、x3:1.6倍、x4:1.9倍、x5+:2.2倍(封顶)。结束回合或无法出牌时Combo重置。保持连击可大幅提升积分!',
+                checkCompletion: () => {
+                    return this.completedSteps.has('combo');
+                },
+                onEnter: () => {
+                    if (this.game && this.game.input) {
+                        this.game.input.selectedCards = [];
+                    }
+                    this.showNextStepButton('combo');
+                }
+            },
+            {
                 id: 'win_condition',
-                title: '步骤 5/7: 通关条件',
-                hint: '⭐ 重要! 通关需要同时满足两个条件:\n1. 在回合限制内清空所有手牌\n2. 达到本关的积分要求(第1关需100分,每关递增)\n\n出完手牌但积分不足也会失败!要注意打出高分牌型(如炸弹225分、火箭300分)和保持连击Combo获得分数加成。点击"下一步"继续。',
+                title: '步骤 7/10: 胜利条件',
+                hint: '⭐ 通关需同时满足:\n1. 在回合限制内清空所有手牌\n2. 达到关卡积分要求(第1关100分、第2关140分...)\n\n出完手牌但积分不足也会失败!',
                 checkCompletion: () => {
                     return this.completedSteps.has('win_condition');
                 },
                 onEnter: () => {
-                    // 恢复行动点,清空选择
-                    if (this.game && this.game.state) {
-                        this.game.state.actionPoints = this.game.state.maxActionPoints;
-                    }
                     if (this.game && this.game.input) {
                         this.game.input.selectedCards = [];
                     }
-                    // 显示"下一步"按钮来手动确认
                     this.showNextStepButton('win_condition');
                 }
             },
             {
-                id: 'gamble_mode',
-                title: '步骤 6/7: 豪赌模式',
-                hint: '🎲 高风险高收益! 豪赌模式可在第一回合出牌前激活:\n\n✅ 成功(S评价,2回合内完成): 积分翻倍(×2.0)\n❌ 失败(A/B评价): 积分减半(×0.5)\n\n适合手牌好的情况下使用,追求高分!豪赌按钮会在正式游戏的第一回合自动显示。点击"下一步"继续。',
-                checkCompletion: () => {
-                    return this.completedSteps.has('gamble_mode');
-                },
-                onEnter: () => {
-                    if (this.game && this.game.input) {
-                        this.game.input.selectedCards = [];
-                    }
-                    // 显示"下一步"按钮来手动确认
-                    this.showNextStepButton('gamble_mode');
-                }
-            },
-            {
                 id: 'end_round',
-                title: '步骤 7/7: 结束回合',
-                hint: '太棒了! 当你想开始新回合时,点击"结束回合"按钮。这会恢复你的行动点并抽取3张新牌。',
+                title: '步骤 8/10: 结束回合',
+                hint: '点击"结束回合"按钮开始新回合。回合结束后:行动点恢复满值、获得2点弃牌点、弃牌消耗递增重置、Combo重置、打开商店。试着点击"结束回合"按钮!',
                 checkCompletion: () => {
                     return this.completedSteps.has('end_round');
                 },
                 onEnter: () => {
-                    // 隐藏"下一步"按钮
                     this.hideNextStepButton();
                     if (this.game && this.game.input) {
                         this.game.input.selectedCards = [];
                     }
+                }
+            },
+            {
+                id: 'rating',
+                title: '步骤 9/10: 评价',
+                hint: '通关评价影响商店金币:\nS评价(2回合内):金币+20%\nA评价(3回合内):金币不变\nB评价(4回合内):金币-50%\n\n追求快速通关获得更多资源!',
+                checkCompletion: () => {
+                    return this.completedSteps.has('rating');
+                },
+                onEnter: () => {
+                    if (this.game && this.game.input) {
+                        this.game.input.selectedCards = [];
+                    }
+                    this.showNextStepButton('rating');
+                }
+            },
+            {
+                id: 'coins_upgrades',
+                title: '步骤 10/10: 金币和卡牌升级',
+                hint: '通关第10关获得500金币。金币用于主菜单的卡牌商店购买永久升级。升级后该点数卡牌有30%概率变为金色升级版,打出时额外+20积分!',
+                checkCompletion: () => {
+                    return this.completedSteps.has('coins_upgrades');
+                },
+                onEnter: () => {
+                    if (this.game && this.game.input) {
+                        this.game.input.selectedCards = [];
+                    }
+                    this.showNextStepButton('coins_upgrades');
                 }
             }
         ];
@@ -303,7 +334,7 @@ class TutorialManager {
         this.enableButtons();
 
         // 显示完成消息
-        alert('🎉 恭喜完成新手教程! 🎉\n\n你已经掌握了基础玩法。\n\n提示: 炸弹(4张相同点数)打出后返还+1行动点,火箭(双王)打出后返还+3行动点!\n\n现在可以开始正式游戏了!');
+        alert('🎉 恭喜完成新手教程! 🎉\n\n你已经掌握了基础玩法。\n\n💡 小贴士:\n• 炸弹打出后返还+1行动点\n• 火箭打出后返还+3行动点\n• 保持连击可大幅提升积分\n• 合理使用弃牌优化手牌\n\n现在可以开始正式游戏了!');
 
         // 返回主菜单
         this.returnToMenu();

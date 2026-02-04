@@ -617,7 +617,7 @@ class GameState {
         }
 
         // 特质：高压攻势 - 每回合首次出牌积分+50%
-        if (this.currentTrait && this.currentTrait.id === 'aggressive_assault' && this.playCountThisRound === 0) {
+        if (this.currentTrait && this.currentTrait.id === 'aggressive_assault' && this.playCountThisRound === 1) {
             baseScore = Math.floor(baseScore * 1.5);
         }
 
@@ -756,8 +756,8 @@ class GameState {
 
         // 特质：连击达人 - 连击中断时失去1点行动点（在重置combo之前检查）
         if (this.currentTrait && this.currentTrait.id === 'combo_master' && this.combo > 1.0) {
-            // 连击即将中断，扣除1点行动点
-            this.actionPoints = Math.max(0, this.actionPoints - 1);
+            // 连击即将中断，下回合行动点-1
+            this.actionPenaltyNextRound += 1;
         }
 
         // 特质：高压攻势 - 回合结束时若手牌数大于15，扣除20积分

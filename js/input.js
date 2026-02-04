@@ -133,13 +133,6 @@ class InputHandler {
         if (window.audioManager) {
             window.audioManager.playCardSelect();
         }
-
-        // 教程模式: 检测步骤1完成 (选中至少一张牌)
-        if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
-            if (window.game.tutorialManager.getCurrentStepId() === 'select_card') {
-                window.game.tutorialManager.checkStepCompletion();
-            }
-        }
     }
 
     // 处理出牌
@@ -195,13 +188,11 @@ class InputHandler {
             this.gameState.startTurnTimer();
         }
 
-        // 教程模式: 检测步骤2和步骤3完成
+        // 教程模式: 检测步骤1完成 (出牌)
         if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
             const currentStepId = window.game.tutorialManager.getCurrentStepId();
-            if (currentStepId === 'play_single' && pattern.name === '单牌') {
-                window.game.tutorialManager.markStepCompleted('play_single');
-            } else if (currentStepId === 'play_pair' && pattern.name === '对子') {
-                window.game.tutorialManager.markStepCompleted('play_pair');
+            if (currentStepId === 'play_cards') {
+                window.game.tutorialManager.markStepCompleted('play_cards');
             }
         }
 
