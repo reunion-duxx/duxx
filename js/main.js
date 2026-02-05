@@ -321,9 +321,10 @@ class Game {
         // 绘制出牌区域
         this.renderer.drawPlayArea(this.state.lastPlayed, this.state.lastScore);
 
-        // 绘制手牌
+        // 绘制手牌（传递悬停索引和游戏状态）
         const selectedIndices = this.input ? this.input.getSelectedIndices() : [];
-        this.renderer.drawHandCards(this.state.handCards, selectedIndices, this.state.level);
+        const hoveredIndex = this.input ? this.input.getHoveredIndex() : -1;
+        this.renderer.drawHandCards(this.state.handCards, selectedIndices, this.state.level, hoveredIndex, this.state);
 
         // 绘制动画
         this.animationManager.render(this.ctx);

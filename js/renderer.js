@@ -8,6 +8,11 @@ class UIRenderer {
         this.cardHeight = 70;
         this.scale = 1.0; // 缩放比例（用于移动端适配）
 
+        // 积分滚动动画
+        this.displayedScore = 0; // 当前显示的积分
+        this.targetScore = 0; // 目标积分
+        this.scoreAnimationSpeed = 5; // 滚动速度（每帧增加的积分）
+
         // 初始化Canvas上下文状态
         this.initCanvasContext();
     }
@@ -21,7 +26,49 @@ class UIRenderer {
         this.ctx.textBaseline = 'top';
 
         // 强制重新应用字体(确保字体加载完成后被应用)
-        this.ctx.font = '11px "Press Start 2P", monospace';
+        this.ctx.font = '11px "Zpix", "Press Start 2P", monospace';
+    }
+
+    // 更新积分滚动动画
+    updateScoreAnimation(targetScore) {
+        this.targetScore = targetScore;
+
+        // 如果差距很大，快速滚动
+        const diff = Math.abs(this.targetScore - this.displayedScore);
+        if (diff > 100) {
+            this.scoreAnimationSpeed = Math.ceil(diff / 20);
+        } else if (diff > 50) {
+            this.scoreAnimationSpeed = Math.ceil(diff / 15);
+        } else {
+            this.scoreAnimationSpeed = Math.max(1, Math.ceil(diff / 10));
+        }
+
+        // 平滑滚动到目标值
+        if (this.displayedScore < this.targetScore) {
+            this.displayedScore = Math.min(this.displayedScore + this.scoreAnimationSpeed, this.targetScore);
+        } else if (this.displayedScore > this.targetScore) {
+            this.displayedScore = Math.max(this.displayedScore - this.scoreAnimationSpeed, this.targetScore);
+        }
+    }
+
+    // 绘制信息分组背景框
+    drawInfoBox(x, y, width, height, color) {
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(x, y, width, height);
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x, y, width, height);
+    }
+
+    // 绘制资源图标（16x16像素）
+    drawResourceIcon(emoji, x, y, color) {
+        this.ctx.save();
+        this.ctx.font = `${Math.max(12, Math.floor(16 * this.scale))}px Arial`;
+        this.ctx.fillStyle = color;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'top';
+        this.ctx.fillText(emoji, x, y - 2 * this.scale);
+        this.ctx.restore();
     }
 
     // 清空画布
@@ -31,7 +78,7 @@ class UIRenderer {
 
         // 重新设置字体和渲染属性（fillRect 可能会重置某些状态）
         this.ctx.imageSmoothingEnabled = false;
-        this.ctx.font = '11px "Press Start 2P", monospace';
+        this.ctx.font = '11px "Zpix", "Press Start 2P", monospace';
     }
 
     // 绘制顶部信息栏
@@ -40,56 +87,74 @@ class UIRenderer {
         const y = 20 * this.scale;
         const fontSize = Math.max(8, Math.floor(11 * this.scale));
 
-        this.ctx.font = `${fontSize}px "Press Start 2P", monospace`;
-        this.ctx.fillStyle = '#fff';
+        this.ctx.font = `${fontSize}px "Zpix", "Press Start 2P", monospace`;
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'top';
 
+        // 绘制信息分组背景框 - 左侧（关卡和回合）
+        this.drawInfoBox(padding, y - 5 * this.scale, 200 * this.scale, 25 * this.scale, 'rgba(0, 0, 0, 0.5)');
+
         // 关卡
-        this.ctx.fillText(`关卡: ${gameState.level}`, padding, y);
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(`关卡: ${gameState.level}`, padding + 5 * this.scale, y);
 
         // 回合 - 根据maxRounds动态显示
-        // Boss关：完美主义者严格限制2回合，不允许B评价的第3回合
         let maxDisplayRounds;
         if (gameState.isBossLevel && gameState.bossRule === 'perfectionist') {
-            maxDisplayRounds = gameState.maxRounds; // 完美主义者：严格2回合
+            maxDisplayRounds = gameState.maxRounds;
         } else {
-            maxDisplayRounds = gameState.maxRounds + 1; // 普通关卡：+1允许B评价
+            maxDisplayRounds = gameState.maxRounds + 1;
         }
         this.ctx.fillText(`回合: ${gameState.round}/${maxDisplayRounds}`, 120 * this.scale, y);
 
-        // 行动点
+        // 绘制资源信息框 - 中间（行动点和弃牌点）
+        this.drawInfoBox(220 * this.scale, y - 5 * this.scale, 320 * this.scale, 25 * this.scale, 'rgba(0, 0, 0, 0.5)');
+
+        // 行动点（带图标）
+        this.drawResourceIcon('⚡', 225 * this.scale, y, '#3498db');
         this.ctx.fillStyle = gameState.actionPoints > 0 ? '#3498db' : '#e74c3c';
-        this.ctx.fillText(`行动点: ${gameState.actionPoints}/${gameState.maxActionPoints}`, 250 * this.scale, y);
+        this.ctx.fillText(`${gameState.actionPoints}/${gameState.maxActionPoints}`, 250 * this.scale, y);
 
-        // 弃牌点 (显示当前消耗)
+        // 弃牌点（带图标）
+        this.drawResourceIcon('🗑', 350 * this.scale, y, '#9b59b6');
         this.ctx.fillStyle = gameState.discardPoints >= gameState.currentDiscardCost ? '#9b59b6' : '#e74c3c';
-        this.ctx.fillText(`弃牌:${gameState.discardPoints}/${gameState.maxDiscardPoints}(消耗${gameState.currentDiscardCost})`, 410 * this.scale, y);
+        this.ctx.fillText(`${gameState.discardPoints}/${gameState.maxDiscardPoints}(${gameState.currentDiscardCost})`, 375 * this.scale, y);
 
-        // 分数
+        // 绘制积分信息框 - 右侧（分数和Combo）
+        this.drawInfoBox(550 * this.scale, y - 5 * this.scale, 200 * this.scale, 25 * this.scale, 'rgba(0, 0, 0, 0.5)');
+
+        // 更新积分滚动动画
+        this.updateScoreAnimation(gameState.score);
+
+        // 分数（带图标）- 使用滚动动画的显示值
+        this.drawResourceIcon('💰', 555 * this.scale, y, '#f39c12');
         this.ctx.fillStyle = '#fff';
-        this.ctx.fillText(`分数: ${gameState.score}`, 540 * this.scale, y);
+        this.ctx.fillText(`${Math.floor(this.displayedScore)}`, 580 * this.scale, y);
 
         // Combo
-        const comboText = `Combo: x${gameState.combo.toFixed(1)}`;
+        const comboText = `x${gameState.combo.toFixed(1)}`;
         this.ctx.fillStyle = gameState.combo > 1.0 ? '#f39c12' : '#fff';
         this.ctx.fillText(comboText, 680 * this.scale, y);
 
-        // 牌库剩余 (第二行)
-        this.ctx.fillStyle = gameState.deckCards.length > 0 ? '#2ecc71' : '#e74c3c';
-        this.ctx.fillText(`牌库: ${gameState.deckCards.length}`, padding, y + 20 * this.scale);
+        // 第二行信息
+        const y2 = y + 25 * this.scale;
 
-        // 封印状态 (第二行)
+        // 牌库剩余（带图标）
+        this.drawResourceIcon('🎴', padding, y2, '#2ecc71');
+        this.ctx.fillStyle = gameState.deckCards.length > 0 ? '#2ecc71' : '#e74c3c';
+        this.ctx.fillText(`牌库: ${gameState.deckCards.length}`, padding + 20 * this.scale, y2);
+
+        // 封印状态
         if (gameState.sealedPatterns && gameState.sealedPatterns.length > 0) {
             this.ctx.fillStyle = '#e74c3c';
             const sealedText = `封印: ${gameState.sealedPatterns.join(', ')}`;
-            this.ctx.fillText(sealedText, 150 * this.scale, y + 20 * this.scale);
+            this.ctx.fillText(sealedText, 150 * this.scale, y2);
         }
 
         // Boss关规则提示
         if (gameState.isBossLevel && gameState.bossRule) {
-            this.ctx.fillStyle = '#9b59b6';  // 紫色表示Boss关
-            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", monospace`;
+            this.ctx.fillStyle = '#9b59b6';
+            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
 
             const bossRuleNames = {
                 'greedyLandlord': '👑 Boss: 贪婪地主 - 每手牌必须比上一手更大',
@@ -100,14 +165,14 @@ class UIRenderer {
             };
 
             const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
-            this.ctx.fillText(bossText, 400 * this.scale, y + 20 * this.scale);
+            this.ctx.fillText(bossText, 400 * this.scale, y2);
         }
-        // 特殊规则提示 (第二行或第三行)
+        // 特殊规则提示
         else if (gameState.specialRule === 'timeLimit') {
             this.ctx.fillStyle = '#e74c3c';
             const remaining = gameState.getRemainingTime();
             const timeText = `限时关卡! 剩余: ${remaining}s`;
-            this.ctx.fillText(timeText, 400 * this.scale, y + 20 * this.scale);
+            this.ctx.fillText(timeText, 400 * this.scale, y2);
         } else if (gameState.specialRule === 'doubleCost') {
             this.ctx.fillStyle = '#e67e22';
             const patternNames = {
@@ -116,20 +181,20 @@ class UIRenderer {
             };
             const patternName = patternNames[gameState.specialRuleData.pattern] || '未知';
             const costText = `消耗加倍: ${patternName}x2`;
-            this.ctx.fillText(costText, 400 * this.scale, y + 20 * this.scale);
+            this.ctx.fillText(costText, 400 * this.scale, y2);
         }
 
         // 豪赌状态提示
         if (gameState.gambleLevelActive) {
             this.ctx.fillStyle = '#e74c3c';
-            this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
             this.ctx.textAlign = 'center';
             this.ctx.fillText('🎰 豪赌模式激活! 目标: S评价 (2回合内)', this.canvas.width / 2, 5 * this.scale);
         }
     }
 
     // 绘制手牌区
-    drawHandCards(cards, selectedIndices, level = 1) {
+    drawHandCards(cards, selectedIndices, level = 1, hoveredIndex = -1, gameState = null) {
         const startX = 50 * this.scale;
         const rowSpacing = 90 * this.scale; // 行间距
 
@@ -147,18 +212,42 @@ class UIRenderer {
             // 绘制上行
             const topY = this.canvas.height - this.cardHeight - 80 * this.scale - rowSpacing;
             topRowCards.forEach((card, i) => {
+                const isSelected = selectedIndices.includes(i);
+                const isHovered = hoveredIndex === i;
+                let y = topY;
+
+                // 选中状态：向上移动15像素
+                if (isSelected) {
+                    y = topY - 15 * this.scale;
+                }
+                // 悬停状态：向上浮动5像素（如果未选中）
+                else if (isHovered) {
+                    y = topY - 5 * this.scale;
+                }
+
                 const x = startX + i * topGap;
-                const y = selectedIndices.includes(i) ? topY - 15 * this.scale : topY;
-                this.drawCard(card, x, y, selectedIndices.includes(i));
+                this.drawCard(card, x, y, isSelected, isHovered, gameState);
             });
 
             // 绘制下行
             const bottomY = this.canvas.height - this.cardHeight - 80 * this.scale;
             bottomRowCards.forEach((card, i) => {
                 const index = midPoint + i;
+                const isSelected = selectedIndices.includes(index);
+                const isHovered = hoveredIndex === index;
+                let y = bottomY;
+
+                // 选中状态：向上移动15像素
+                if (isSelected) {
+                    y = bottomY - 15 * this.scale;
+                }
+                // 悬停状态：向上浮动5像素（如果未选中）
+                else if (isHovered) {
+                    y = bottomY - 5 * this.scale;
+                }
+
                 const x = startX + i * bottomGap;
-                const y = selectedIndices.includes(index) ? bottomY - 15 * this.scale : bottomY;
-                this.drawCard(card, x, y, selectedIndices.includes(index));
+                this.drawCard(card, x, y, isSelected, isHovered, gameState);
             });
         } else {
             // 单行显示逻辑（保持原有逻辑）
@@ -166,14 +255,26 @@ class UIRenderer {
             const gap = Math.min(60 * this.scale, (this.canvas.width - 100 * this.scale) / cards.length);
 
             cards.forEach((card, index) => {
+                const isSelected = selectedIndices.includes(index);
+                const isHovered = hoveredIndex === index;
+                let y = startY;
+
+                // 选中状态：向上移动15像素
+                if (isSelected) {
+                    y = startY - 15 * this.scale;
+                }
+                // 悬停状态：向上浮动5像素（如果未选中）
+                else if (isHovered) {
+                    y = startY - 5 * this.scale;
+                }
+
                 const x = startX + index * gap;
-                const y = selectedIndices.includes(index) ? startY - 15 * this.scale : startY;
-                this.drawCard(card, x, y, selectedIndices.includes(index));
+                this.drawCard(card, x, y, isSelected, isHovered, gameState);
             });
         }
 
         // 显示手牌数量
-        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
         this.ctx.fillStyle = '#ecf0f1';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
@@ -181,40 +282,66 @@ class UIRenderer {
     }
 
     // 绘制单张扑克牌 (像素风格)
-    drawCard(card, x, y, selected) {
+    drawCard(card, x, y, selected, hovered = false, gameState = null) {
         const w = this.cardWidth;
         const h = this.cardHeight;
 
+        // 已选中卡牌：添加轻微的缩放和摇晃效果
+        this.ctx.save();
+        if (selected) {
+            const time = Date.now() / 1000;
+            const wobble = Math.sin(time * 3) * 2; // 左右摇晃2像素
+            const scale = 1.05; // 放大5%
+
+            this.ctx.translate(x + w / 2, y + h / 2);
+            this.ctx.rotate(wobble * 0.02); // 轻微旋转
+            this.ctx.scale(scale, scale);
+            this.ctx.translate(-(x + w / 2), -(y + h / 2));
+        }
+
+        // 检查卡牌是否可选（行动点是否足够）
+        // 这里简化处理：如果没有传入gameState，默认可选
+        let isDisabled = false;
+        if (gameState && gameState.actionPoints <= 0) {
+            // 如果行动点为0，所有牌都不可选
+            isDisabled = true;
+        }
+
         // 卡牌背景（升级牌使用金色背景）
-        if (card.isUpgraded) {
+        if (isDisabled) {
+            // 不可选状态：降低透明度
+            this.ctx.globalAlpha = 0.5;
+            this.ctx.fillStyle = '#999';
+        } else if (card.isUpgraded) {
             this.ctx.fillStyle = selected ? '#f9e79f' : '#fef5e7';
         } else {
             this.ctx.fillStyle = selected ? '#ecf0f1' : '#fff';
         }
         this.ctx.fillRect(x, y, w, h);
 
-        // 卡牌边框（升级牌使用金色边框）
-        if (card.isUpgraded) {
-            this.ctx.strokeStyle = selected ? '#f39c12' : '#f1c40f';
+        // 悬停状态：发光边框
+        if (hovered && !isDisabled) {
+            this.ctx.shadowColor = '#f39c12';
+            this.ctx.shadowBlur = 10 * this.scale;
+            this.ctx.strokeStyle = '#f39c12';
             this.ctx.lineWidth = Math.max(2, 3 * this.scale);
-        } else {
-            this.ctx.strokeStyle = selected ? '#f39c12' : '#000';
-            this.ctx.lineWidth = selected ? Math.max(2, 3 * this.scale) : Math.max(1, 2 * this.scale);
+            this.ctx.strokeRect(x, y, w, h);
+            this.ctx.shadowBlur = 0; // 重置阴影
         }
-        this.ctx.strokeRect(x, y, w, h);
 
-        // 点数和花色颜色
-        const color = card.isRed() ? '#e74c3c' : '#000';
-        this.ctx.fillStyle = color;
-        this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", monospace`;
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'top';
+        // 获取花色颜色（高对比度）
+        const getSuitColor = (suit) => {
+            if (isDisabled) return '#666'; // 不可选状态使用灰色
+            switch(suit) {
+                case 'hearts': return '#ff1744';      // ♥ 亮红色
+                case 'diamonds': return '#ff6f00';    // ♦ 橙红色
+                case 'clubs': return '#000000';       // ♣ 纯黑色
+                case 'spades': return '#1a237e';      // ♠ 蓝黑色
+                default: return '#000000';
+            }
+        };
 
-        // 绘制点数
-        const rankText = card.rank === '10' ? '10' : card.rank;
-        this.ctx.fillText(rankText, x + w / 2, y + 8 * this.scale);
-
-        // 绘制花色符号
+        // 绘制牌面中央的花色暗纹（15%透明度）
         if (card.suit !== 'joker') {
             const suitSymbols = {
                 'hearts': '♥',
@@ -222,19 +349,68 @@ class UIRenderer {
                 'diamonds': '♦',
                 'clubs': '♣'
             };
-            this.ctx.font = `${Math.max(12, Math.floor(20 * this.scale))}px Arial, sans-serif`;
-            this.ctx.textBaseline = 'alphabetic';
-            this.ctx.fillText(suitSymbols[card.suit], x + w / 2, y + h - 15 * this.scale);
+            this.ctx.save();
+            this.ctx.globalAlpha = isDisabled ? 0.1 : 0.15;
+            this.ctx.fillStyle = getSuitColor(card.suit);
+            this.ctx.font = `${Math.max(30, Math.floor(45 * this.scale))}px Arial, sans-serif`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(suitSymbols[card.suit], x + w / 2, y + h / 2);
+            this.ctx.restore();
+        }
+
+        // 1像素深色轮廓
+        this.ctx.strokeStyle = '#2C2C2C';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x, y, w, h);
+
+        // 卡牌边框（升级牌使用金色边框）
+        if (!hovered) { // 悬停时已经绘制过边框
+            if (card.isUpgraded) {
+                this.ctx.strokeStyle = selected ? '#f39c12' : '#f1c40f';
+                this.ctx.lineWidth = Math.max(2, 3 * this.scale);
+            } else {
+                this.ctx.strokeStyle = selected ? '#f39c12' : '#000';
+                this.ctx.lineWidth = selected ? Math.max(2, 3 * this.scale) : Math.max(1, 2 * this.scale);
+            }
+            this.ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+        }
+
+        // 点数和花色颜色
+        const color = card.suit === 'joker' ? (card.rank === 'JOKER' ? '#ff1744' : '#000') : getSuitColor(card.suit);
+        this.ctx.fillStyle = color;
+
+        // 绘制左上角点数（放大1-2像素）
+        this.ctx.font = `${Math.max(9, Math.floor(14 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'top';
+        const rankText = card.rank === '10' ? '10' : card.rank;
+        this.ctx.fillText(rankText, x + 4 * this.scale, y + 4 * this.scale);
+
+        // 绘制左上角花色符号（放大1-2像素）
+        if (card.suit !== 'joker') {
+            const suitSymbols = {
+                'hearts': '♥',
+                'spades': '♠',
+                'diamonds': '♦',
+                'clubs': '♣'
+            };
+            this.ctx.font = `${Math.max(14, Math.floor(22 * this.scale))}px Arial, sans-serif`;
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'top';
+            this.ctx.fillText(suitSymbols[card.suit], x + 4 * this.scale, y + 18 * this.scale);
         }
 
         // 升级牌标记
         if (card.isUpgraded) {
-            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", monospace`;
-            this.ctx.fillStyle = '#e67e22';
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            this.ctx.fillStyle = isDisabled ? '#666' : '#e67e22';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('+20', x + w / 2, y + h / 2 + 5 * this.scale);
+            this.ctx.fillText('+20', x + w / 2, y + h - 12 * this.scale);
         }
+
+        this.ctx.restore();
     }
 
     // 绘制出牌区域
@@ -244,14 +420,14 @@ class UIRenderer {
 
         if (lastPlayed && lastPlayed.cards) {
             // 显示牌型名称
-            this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
             this.ctx.fillStyle = '#f39c12';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'top';
             this.ctx.fillText(lastPlayed.name, centerX, centerY - 60 * this.scale);
 
             // 显示得分
-            this.ctx.font = `${Math.max(12, Math.floor(20 * this.scale))}px "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(12, Math.floor(20 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
             this.ctx.fillStyle = '#2ecc71';
             this.ctx.textBaseline = 'top';
             this.ctx.fillText(`+${lastScore}分`, centerX, centerY - 30 * this.scale);
@@ -263,7 +439,7 @@ class UIRenderer {
             });
         } else {
             // 提示文字
-            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
             this.ctx.fillStyle = '#95a5a6';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'top';
@@ -273,7 +449,7 @@ class UIRenderer {
 
     // 绘制提示信息
     drawHint(message, color = '#fff') {
-        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
         this.ctx.fillStyle = color;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
@@ -283,7 +459,7 @@ class UIRenderer {
     // 绘制加载动画
     drawLoading() {
         this.clear();
-        this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
         this.ctx.fillStyle = '#f39c12';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
@@ -657,7 +833,7 @@ class ComboPopupAnimation {
     render(ctx) {
         ctx.save();
         ctx.globalAlpha = this.alpha;
-        ctx.font = '24px "Press Start 2P", monospace';
+        ctx.font = '24px "Zpix", "Press Start 2P", monospace';
         ctx.fillStyle = '#f39c12';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -794,6 +970,77 @@ class RocketLaunchAnimation {
         ctx.lineTo(this.x + 8, this.y - 15);
         ctx.closePath();
         ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+// 得分弹跳动画
+class ScorePopupAnimation {
+    constructor(score, x, y) {
+        this.score = score;
+        this.x = x;
+        this.y = y;
+        this.startY = y;
+        this.time = 0;
+        this.duration = 1200; // 1.2秒
+        this.finished = false;
+    }
+
+    update(deltaTime) {
+        this.time += deltaTime;
+        if (this.time >= this.duration) {
+            this.finished = true;
+            return;
+        }
+    }
+
+    render(ctx) {
+        const progress = this.time / this.duration;
+
+        // 弹跳效果：使用缓动函数
+        let scale = 1.0;
+        if (progress < 0.3) {
+            // 前30%时间：从0放大到1.5
+            scale = (progress / 0.3) * 1.5;
+        } else if (progress < 0.5) {
+            // 30%-50%：从1.5缩小到1.2
+            const t = (progress - 0.3) / 0.2;
+            scale = 1.5 - t * 0.3;
+        } else if (progress < 0.7) {
+            // 50%-70%：从1.2放大到1.3
+            const t = (progress - 0.5) / 0.2;
+            scale = 1.2 + t * 0.1;
+        } else {
+            // 70%-100%：保持1.3并淡出
+            scale = 1.3;
+        }
+
+        // 向上移动
+        const offsetY = progress * -30;
+
+        // 透明度：最后30%淡出
+        let alpha = 1.0;
+        if (progress > 0.7) {
+            alpha = 1.0 - (progress - 0.7) / 0.3;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(this.x, this.y + offsetY);
+        ctx.scale(scale, scale);
+
+        // 绘制得分文字
+        ctx.font = '20px "Zpix", "Press Start 2P", monospace';
+        ctx.fillStyle = '#2ecc71';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const text = `+${this.score}分`;
+        ctx.strokeText(text, 0, 0);
+        ctx.fillText(text, 0, 0);
 
         ctx.restore();
     }

@@ -7,6 +7,7 @@ class InputHandler {
         this.renderer = renderer;
         this.shop = shop;
         this.selectedCards = [];
+        this.hoveredCardIndex = -1; // 当前悬停的卡牌索引
 
         this.bindEvents();
     }
@@ -31,9 +32,31 @@ class InputHandler {
             }
         };
 
+        // 鼠标移动事件 - 追踪悬停状态
+        const handleMouseMove = (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const index = this.renderer.getCardIndexAt(x, y, this.gameState.handCards, this.gameState.level);
+            if (index !== this.hoveredCardIndex) {
+                this.hoveredCardIndex = index;
+                // 悬停状态改变时，更新光标样式
+                this.canvas.style.cursor = index !== -1 ? 'pointer' : 'default';
+            }
+        };
+
+        // 鼠标离开Canvas时清除悬停状态
+        const handleMouseLeave = () => {
+            this.hoveredCardIndex = -1;
+            this.canvas.style.cursor = 'default';
+        };
+
         // 支持鼠标和触摸
         this.canvas.addEventListener('click', handleCardSelect);
         this.canvas.addEventListener('touchstart', handleCardSelect, { passive: false });
+        this.canvas.addEventListener('mousemove', handleMouseMove);
+        this.canvas.addEventListener('mouseleave', handleMouseLeave);
 
         // 出牌按钮
         document.getElementById('playBtn').addEventListener('click', () => {
@@ -186,6 +209,13 @@ class InputHandler {
         // 限时关卡：出牌后重启计时器（重新开始30秒）
         if (this.gameState.specialRule === 'timeLimit') {
             this.gameState.startTurnTimer();
+        }
+
+        // 添加得分弹跳动画
+        if (window.game && window.game.animationManager) {
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2 - 30;
+            window.game.animationManager.add(new ScorePopupAnimation(this.gameState.lastScore, centerX, centerY));
         }
 
         // 教程模式: 检测步骤1完成 (出牌)
@@ -801,6 +831,11 @@ class InputHandler {
     // 获取选中的牌索引
     getSelectedIndices() {
         return this.selectedCards;
+    }
+
+    // 获取悬停的牌索引
+    getHoveredIndex() {
+        return this.hoveredCardIndex;
     }
 
     // 显示特质选择界面
