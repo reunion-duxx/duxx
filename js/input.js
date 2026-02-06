@@ -73,11 +73,6 @@ class InputHandler {
             this.handleDiscard();
         });
 
-        // 商店按钮
-        document.getElementById('shopBtn').addEventListener('click', () => {
-            alert('商店只能在回合结束时使用！');
-        });
-
         // 道具按钮
         document.getElementById('itemsBtn').addEventListener('click', () => {
             this.openItems();
@@ -106,15 +101,6 @@ class InputHandler {
         // 按点数理牌按钮
         document.getElementById('sortByRankBtn').addEventListener('click', () => {
             this.gameState.sortByRank();
-            this.selectedCards = []; // 清空选择
-            if (window.audioManager) {
-                window.audioManager.playButtonClick();
-            }
-        });
-
-        // 按花色理牌按钮
-        document.getElementById('sortBySuitBtn').addEventListener('click', () => {
-            this.gameState.sortBySuit();
             this.selectedCards = []; // 清空选择
             if (window.audioManager) {
                 window.audioManager.playButtonClick();

@@ -4,8 +4,8 @@ class UIRenderer {
     constructor(ctx) {
         this.ctx = ctx;
         this.canvas = ctx.canvas;
-        this.cardWidth = 50;
-        this.cardHeight = 70;
+        this.cardWidth = 70;
+        this.cardHeight = 98;
         this.scale = 1.0; // 缩放比例（用于移动端适配）
 
         // 积分滚动动画
@@ -26,7 +26,7 @@ class UIRenderer {
         this.ctx.textBaseline = 'top';
 
         // 强制重新应用字体(确保字体加载完成后被应用)
-        this.ctx.font = '11px "Zpix", "Press Start 2P", monospace';
+        this.ctx.font = '11px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif';
     }
 
     // 更新积分滚动动画
@@ -78,16 +78,40 @@ class UIRenderer {
 
         // 重新设置字体和渲染属性（fillRect 可能会重置某些状态）
         this.ctx.imageSmoothingEnabled = false;
-        this.ctx.font = '11px "Zpix", "Press Start 2P", monospace';
+        this.ctx.font = '11px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif';
     }
 
     // 绘制顶部信息栏
     drawTopBar(gameState) {
         const padding = 10 * this.scale;
+        const isMobile = this.canvas.width < 500; // 判断是否为移动端
+
+        // 回合数计算
+        let maxDisplayRounds;
+        if (gameState.isBossLevel && gameState.bossRule === 'perfectionist') {
+            maxDisplayRounds = gameState.maxRounds;
+        } else {
+            maxDisplayRounds = gameState.maxRounds + 1;
+        }
+
+        // 更新积分滚动动画
+        this.updateScoreAnimation(gameState.score);
+
+        if (isMobile) {
+            // 移动端：垂直堆叠布局
+            this.drawTopBarMobile(gameState, padding, maxDisplayRounds);
+        } else {
+            // 桌面端：原有横向布局
+            this.drawTopBarDesktop(gameState, padding, maxDisplayRounds);
+        }
+    }
+
+    // 桌面端顶部信息栏布局
+    drawTopBarDesktop(gameState, padding, maxDisplayRounds) {
         const y = 20 * this.scale;
         const fontSize = Math.max(8, Math.floor(11 * this.scale));
 
-        this.ctx.font = `${fontSize}px "Zpix", "Press Start 2P", monospace`;
+        this.ctx.font = `${fontSize}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'top';
 
@@ -98,13 +122,7 @@ class UIRenderer {
         this.ctx.fillStyle = '#fff';
         this.ctx.fillText(`关卡: ${gameState.level}`, padding + 5 * this.scale, y);
 
-        // 回合 - 根据maxRounds动态显示
-        let maxDisplayRounds;
-        if (gameState.isBossLevel && gameState.bossRule === 'perfectionist') {
-            maxDisplayRounds = gameState.maxRounds;
-        } else {
-            maxDisplayRounds = gameState.maxRounds + 1;
-        }
+        // 回合
         this.ctx.fillText(`回合: ${gameState.round}/${maxDisplayRounds}`, 120 * this.scale, y);
 
         // 绘制资源信息框 - 中间（行动点和弃牌点）
@@ -122,9 +140,6 @@ class UIRenderer {
 
         // 绘制积分信息框 - 右侧（分数和Combo）
         this.drawInfoBox(550 * this.scale, y - 5 * this.scale, 200 * this.scale, 25 * this.scale, 'rgba(0, 0, 0, 0.5)');
-
-        // 更新积分滚动动画
-        this.updateScoreAnimation(gameState.score);
 
         // 分数（带图标）- 使用滚动动画的显示值
         this.drawResourceIcon('💰', 555 * this.scale, y, '#f39c12');
@@ -154,7 +169,7 @@ class UIRenderer {
         // Boss关规则提示
         if (gameState.isBossLevel && gameState.bossRule) {
             this.ctx.fillStyle = '#9b59b6';
-            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
 
             const bossRuleNames = {
                 'greedyLandlord': '👑 Boss: 贪婪地主 - 每手牌必须比上一手更大',
@@ -187,9 +202,110 @@ class UIRenderer {
         // 豪赌状态提示
         if (gameState.gambleLevelActive) {
             this.ctx.fillStyle = '#e74c3c';
-            this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
             this.ctx.textAlign = 'center';
             this.ctx.fillText('🎰 豪赌模式激活! 目标: S评价 (2回合内)', this.canvas.width / 2, 5 * this.scale);
+        }
+    }
+
+    // 移动端顶部信息栏布局（垂直堆叠）
+    drawTopBarMobile(gameState, padding, maxDisplayRounds) {
+        let currentY = 8 * this.scale;
+        const lineHeight = 18 * this.scale;
+        const fontSize = Math.max(7, Math.floor(9 * this.scale));
+        const iconSize = Math.max(10, Math.floor(12 * this.scale));
+
+        this.ctx.font = `${fontSize}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'top';
+
+        // 豪赌状态提示（最顶部）
+        if (gameState.gambleLevelActive) {
+            this.ctx.fillStyle = '#e74c3c';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('🎰 豪赌模式', this.canvas.width / 2, currentY);
+            currentY += lineHeight;
+            this.ctx.textAlign = 'left';
+        }
+
+        // 第一行：关卡、回合、牌库
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(`关卡:${gameState.level}`, padding, currentY);
+
+        const col2X = this.canvas.width * 0.35;
+        this.ctx.fillText(`回合:${gameState.round}/${maxDisplayRounds}`, col2X, currentY);
+
+        const col3X = this.canvas.width * 0.65;
+        this.drawResourceIcon('🎴', col3X, currentY, '#2ecc71');
+        this.ctx.fillStyle = gameState.deckCards.length > 0 ? '#2ecc71' : '#e74c3c';
+        this.ctx.fillText(`${gameState.deckCards.length}`, col3X + iconSize + 2 * this.scale, currentY);
+
+        currentY += lineHeight;
+
+        // 第二行：行动点、弃牌点
+        this.drawResourceIcon('⚡', padding, currentY, '#3498db');
+        this.ctx.fillStyle = gameState.actionPoints > 0 ? '#3498db' : '#e74c3c';
+        this.ctx.fillText(`${gameState.actionPoints}/${gameState.maxActionPoints}`, padding + iconSize + 2 * this.scale, currentY);
+
+        this.drawResourceIcon('🗑', col2X, currentY, '#9b59b6');
+        this.ctx.fillStyle = gameState.discardPoints >= gameState.currentDiscardCost ? '#9b59b6' : '#e74c3c';
+        this.ctx.fillText(`${gameState.discardPoints}/${gameState.maxDiscardPoints}(${gameState.currentDiscardCost})`, col2X + iconSize + 2 * this.scale, currentY);
+
+        currentY += lineHeight;
+
+        // 第三行：分数、Combo
+        this.drawResourceIcon('💰', padding, currentY, '#f39c12');
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(`${Math.floor(this.displayedScore)}`, padding + iconSize + 2 * this.scale, currentY);
+
+        const comboText = `Combo:x${gameState.combo.toFixed(1)}`;
+        this.ctx.fillStyle = gameState.combo > 1.0 ? '#f39c12' : '#fff';
+        this.ctx.fillText(comboText, col2X, currentY);
+
+        currentY += lineHeight;
+
+        // 封印状态
+        if (gameState.sealedPatterns && gameState.sealedPatterns.length > 0) {
+            this.ctx.fillStyle = '#e74c3c';
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+            const sealedText = `封印:${gameState.sealedPatterns.join(',')}`;
+            this.ctx.fillText(sealedText, padding, currentY);
+            currentY += lineHeight;
+        }
+
+        // Boss关规则提示（简化版）
+        if (gameState.isBossLevel && gameState.bossRule) {
+            this.ctx.fillStyle = '#9b59b6';
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+
+            const bossRuleNames = {
+                'greedyLandlord': '👑 贪婪地主',
+                'perfectionist': '💎 完美主义',
+                'orderGuardian': '🛡️ 秩序守护',
+                'chaosMage': '🎭 混乱法师',
+                'pressureTester': '⚡ 压力测试'
+            };
+
+            const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
+            this.ctx.fillText(bossText, padding, currentY);
+        }
+        // 特殊规则提示（简化版）
+        else if (gameState.specialRule === 'timeLimit') {
+            this.ctx.fillStyle = '#e74c3c';
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+            const remaining = gameState.getRemainingTime();
+            const timeText = `⏱限时:${remaining}s`;
+            this.ctx.fillText(timeText, padding, currentY);
+        } else if (gameState.specialRule === 'doubleCost') {
+            this.ctx.fillStyle = '#e67e22';
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+            const patternNames = {
+                'PAIR': '对子', 'TRIPLE': '三张', 'STRAIGHT': '顺子',
+                'DOUBLE_STRAIGHT': '连对', 'AIRPLANE': '飞机'
+            };
+            const patternName = patternNames[gameState.specialRuleData.pattern] || '未知';
+            const costText = `⚠${patternName}x2`;
+            this.ctx.fillText(costText, padding, currentY);
         }
     }
 
@@ -274,7 +390,7 @@ class UIRenderer {
         }
 
         // 显示手牌数量
-        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
         this.ctx.fillStyle = '#ecf0f1';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
@@ -381,7 +497,7 @@ class UIRenderer {
         this.ctx.fillStyle = color;
 
         // 绘制左上角点数（放大1-2像素）
-        this.ctx.font = `${Math.max(9, Math.floor(14 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(9, Math.floor(14 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'top';
         const rankText = card.rank === '10' ? '10' : card.rank;
@@ -403,7 +519,7 @@ class UIRenderer {
 
         // 升级牌标记
         if (card.isUpgraded) {
-            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
             this.ctx.fillStyle = isDisabled ? '#666' : '#e67e22';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
@@ -416,40 +532,49 @@ class UIRenderer {
     // 绘制出牌区域
     drawPlayArea(lastPlayed, lastScore) {
         const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2 - 50 * this.scale;
+        const isMobile = this.canvas.width < 500;
+
+        // 移动端需要更多顶部空间（因为顶部信息栏更高）
+        const topOffset = isMobile ? 80 * this.scale : 50 * this.scale;
+        const centerY = this.canvas.height / 2 - topOffset;
 
         if (lastPlayed && lastPlayed.cards) {
             // 显示牌型名称
-            this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            const nameFontSize = isMobile ? Math.max(9, Math.floor(12 * this.scale)) : Math.max(10, Math.floor(16 * this.scale));
+            this.ctx.font = `${nameFontSize}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
             this.ctx.fillStyle = '#f39c12';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'top';
             this.ctx.fillText(lastPlayed.name, centerX, centerY - 60 * this.scale);
 
             // 显示得分
-            this.ctx.font = `${Math.max(12, Math.floor(20 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            const scoreFontSize = isMobile ? Math.max(10, Math.floor(14 * this.scale)) : Math.max(12, Math.floor(20 * this.scale));
+            this.ctx.font = `${scoreFontSize}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
             this.ctx.fillStyle = '#2ecc71';
             this.ctx.textBaseline = 'top';
             this.ctx.fillText(`+${lastScore}分`, centerX, centerY - 30 * this.scale);
 
             // 绘制出的牌
-            const startX = centerX - (lastPlayed.cards.length * 60 * this.scale) / 2;
+            const cardGap = isMobile ? 40 * this.scale : 60 * this.scale;
+            const startX = centerX - (lastPlayed.cards.length * cardGap) / 2;
             lastPlayed.cards.forEach((card, index) => {
-                this.drawCard(card, startX + index * 60 * this.scale, centerY, false);
+                this.drawCard(card, startX + index * cardGap, centerY, false);
             });
         } else {
             // 提示文字
-            this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+            const hintFontSize = isMobile ? Math.max(7, Math.floor(9 * this.scale)) : Math.max(8, Math.floor(12 * this.scale));
+            this.ctx.font = `${hintFontSize}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
             this.ctx.fillStyle = '#95a5a6';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'top';
-            this.ctx.fillText('选择手牌后点击"出牌"', centerX, centerY);
+            const hintText = isMobile ? '选牌后点出牌' : '选择手牌后点击"出牌"';
+            this.ctx.fillText(hintText, centerX, centerY);
         }
     }
 
     // 绘制提示信息
     drawHint(message, color = '#fff') {
-        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(7, Math.floor(10 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
         this.ctx.fillStyle = color;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
@@ -459,7 +584,7 @@ class UIRenderer {
     // 绘制加载动画
     drawLoading() {
         this.clear();
-        this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Zpix", "Press Start 2P", monospace`;
+        this.ctx.font = `${Math.max(10, Math.floor(16 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
         this.ctx.fillStyle = '#f39c12';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top';
@@ -833,7 +958,7 @@ class ComboPopupAnimation {
     render(ctx) {
         ctx.save();
         ctx.globalAlpha = this.alpha;
-        ctx.font = '24px "Zpix", "Press Start 2P", monospace';
+        ctx.font = '24px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif';
         ctx.fillStyle = '#f39c12';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -1031,7 +1156,7 @@ class ScorePopupAnimation {
         ctx.scale(scale, scale);
 
         // 绘制得分文字
-        ctx.font = '20px "Zpix", "Press Start 2P", monospace';
+        ctx.font = '20px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif';
         ctx.fillStyle = '#2ecc71';
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 3;
