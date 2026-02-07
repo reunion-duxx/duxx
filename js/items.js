@@ -503,7 +503,7 @@ class ItemFactory {
             name: '黄金存钱罐',
             price: 300,
             type: 'permanent',
-            description: '每局开始时额外获得20分初始分数',
+            description: '每回合开始时额外获得20分',
             effect: (gameState) => {
                 return { success: true, message: '永久道具已购买!', permanent: true };
             }
@@ -513,7 +513,7 @@ class ItemFactory {
             name: '钻石存钱罐',
             price: 700,
             type: 'permanent',
-            description: '每局开始时额外获得50分初始分数',
+            description: '每回合开始时额外获得50分',
             effect: (gameState) => {
                 return { success: true, message: '永久道具已购买!', permanent: true };
             }
@@ -523,7 +523,7 @@ class ItemFactory {
             name: '王者存钱罐',
             price: 1200,
             type: 'permanent',
-            description: '每局开始时额外获得100分初始分数',
+            description: '每回合开始时额外获得100分',
             effect: (gameState) => {
                 return { success: true, message: '永久道具已购买!', permanent: true };
             }

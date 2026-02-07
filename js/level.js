@@ -44,11 +44,11 @@ class LevelManager {
 
             // 随机选择一个boss规则
             const bossRules = [
-                'greedyLandlord',      // 贪婪地主
                 'perfectionist',       // 完美主义者
                 'orderGuardian',       // 秩序守护者
                 'chaosMage',           // 混乱法师
-                'pressureTester'       // 压力测试者
+                'pressureTester',      // 压力测试者
+                'sacrificer'           // 献祭者
             ];
             gameState.bossRule = bossRules[Math.floor(Math.random() * bossRules.length)];
 
@@ -72,10 +72,7 @@ class LevelManager {
             }
 
             // 根据不同boss规则初始化特定数据
-            if (gameState.bossRule === 'greedyLandlord') {
-                // 贪婪地主：记录上一手牌
-                gameState.bossRuleData.lastPlayedPattern = null;
-            } else if (gameState.bossRule === 'perfectionist') {
+            if (gameState.bossRule === 'perfectionist') {
                 // 完美主义者：2回合内完成，积分要求×1.5
                 gameState.bossRuleData.requiredScore = Math.floor(gameState.levelScoreRequirements[gameState.level] * 1.5);
                 gameState.maxRounds = 2; // 限制为2回合
@@ -107,6 +104,10 @@ class LevelManager {
             } else if (gameState.bossRule === 'pressureTester') {
                 // 压力测试者：无法弃牌，手牌超过15张会惩罚
                 gameState.bossRuleData.cannotDiscard = true;
+            } else if (gameState.bossRule === 'sacrificer') {
+                // 献祭者：每次出牌后必须弃掉一张相同点数的牌，否则随机弃两张
+                gameState.bossRuleData.sacrificeRequired = false; // 是否需要献祭
+                gameState.bossRuleData.lastPlayedRanks = []; // 上次出牌的点数列表
             }
 
             // boss关不触发普通特殊规则
@@ -206,9 +207,7 @@ class LevelManager {
 
         // Boss关重试：重置boss规则数据但保持规则类型
         if (gameState.isBossLevel && gameState.bossRule) {
-            if (gameState.bossRule === 'greedyLandlord') {
-                gameState.bossRuleData.lastPlayedPattern = null;
-            } else if (gameState.bossRule === 'perfectionist') {
+            if (gameState.bossRule === 'perfectionist') {
                 gameState.maxRounds = 2; // 重新设置为2回合
             } else if (gameState.bossRule === 'orderGuardian') {
                 // 重置解锁状态
@@ -237,6 +236,10 @@ class LevelManager {
             } else if (gameState.bossRule === 'pressureTester') {
                 // 压力测试者：重新设置无法弃牌标志
                 gameState.bossRuleData.cannotDiscard = true;
+            } else if (gameState.bossRule === 'sacrificer') {
+                // 献祭者：重置献祭状态
+                gameState.bossRuleData.sacrificeRequired = false;
+                gameState.bossRuleData.lastPlayedRanks = [];
             }
         }
 
@@ -250,17 +253,6 @@ class LevelManager {
         // 重新发同数量的牌
         const cardCount = this.getCardCount(gameState.level);
         gameState.dealCards(cardCount);
-    }
-
-    // 回退到上一关
-    static fallbackLevel(gameState) {
-        if (gameState.level > 1) {
-            gameState.level--;
-            this.nextLevel(gameState);
-        } else {
-            // 第1关失败就重试
-            this.retryLevel(gameState);
-        }
     }
 
     // 获取关卡描述

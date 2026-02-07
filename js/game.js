@@ -365,6 +365,9 @@ class GameState {
         this.turnTimer = null;            // 计时器ID
         this.turnTimeLimit = 30;          // 限时关卡时间限制(30秒)
         this.turnStartTime = null;        // 本次出牌思考开始时间
+        this.turnTimerPaused = false;     // 倒计时是否暂停
+        this.turnPauseStartTime = null;   // 暂停开始时间
+        this.turnTotalPausedTime = 0;     // 本回合累计暂停时间(毫秒)
 
         // Boss关系统
         this.isBossLevel = false;         // 是否为boss关
@@ -555,15 +558,7 @@ class GameState {
 
         // ===== Boss规则验证 =====
         if (this.isBossLevel && this.bossRule) {
-            // 1. 贪婪地主：每手牌必须比上一手更大
-            if (this.bossRule === 'greedyLandlord') {
-                const lastPattern = this.bossRuleData.lastPlayedPattern;
-                if (lastPattern && !this.canBeatPattern(pattern, patternKey, lastPattern)) {
-                    return { success: false, message: 'Boss规则：每手牌必须比上一手更大!' };
-                }
-            }
-
-            // 2. 秩序守护者：必须按顺序出牌型
+            // 秩序守护者：必须按顺序出牌型
             if (this.bossRule === 'orderGuardian') {
                 if (!this.bossRuleData.unlockedPatterns.includes(patternKey) &&
                     patternKey !== 'ROCKET') {  // 火箭可以随时打
@@ -665,15 +660,6 @@ class GameState {
 
         // ===== Boss规则状态更新 =====
         if (this.isBossLevel && this.bossRule) {
-            // 贪婪地主：记录本次打出的牌型
-            if (this.bossRule === 'greedyLandlord') {
-                this.bossRuleData.lastPlayedPattern = {
-                    name: patternKey,
-                    cards: selectedCards.map(c => ({ suit: c.suit, rank: c.rank, value: c.value })),
-                    score: pattern.score
-                };
-            }
-
             // 秩序守护者：分组解锁牌型
             if (this.bossRule === 'orderGuardian') {
                 const currentGroupIndex = this.bossRuleData.currentGroupIndex;
@@ -700,6 +686,14 @@ class GameState {
                         this.bossRuleData.currentGroupCompleted = false;
                     }
                 }
+            }
+
+            // 献祭者：出牌后必须弃掉一张相同点数的牌
+            if (this.bossRule === 'sacrificer') {
+                // 记录本次出牌的所有点数
+                const playedRanks = selectedCards.map(card => card.rank);
+                this.bossRuleData.lastPlayedRanks = [...new Set(playedRanks)]; // 去重
+                this.bossRuleData.sacrificeRequired = true;
             }
         }
 
@@ -743,6 +737,77 @@ class GameState {
                 }
             }
             // 如果积分未达标，不设置gameOver，继续抽牌
+        }
+    }
+
+    // 献祭者Boss：执行献祭逻辑
+    performSacrifice() {
+        if (!this.isBossLevel || this.bossRule !== 'sacrificer' || !this.bossRuleData.sacrificeRequired) {
+            return { success: false, message: '当前无需献祭' };
+        }
+
+        const lastPlayedRanks = this.bossRuleData.lastPlayedRanks;
+
+        // 检查手牌中是否有匹配点数的牌
+        const matchingCards = this.handCards.filter(card =>
+            lastPlayedRanks.includes(card.rank)
+        );
+
+        if (matchingCards.length > 0) {
+            // 有匹配的牌，随机弃掉一张
+            const cardToSacrifice = matchingCards[Math.floor(Math.random() * matchingCards.length)];
+            const index = this.handCards.indexOf(cardToSacrifice);
+            this.handCards.splice(index, 1);
+
+            // 重置献祭状态
+            this.bossRuleData.sacrificeRequired = false;
+            this.bossRuleData.lastPlayedRanks = [];
+
+            return {
+                success: true,
+                message: `献祭了一张 ${cardToSacrifice.rank}`,
+                sacrificedCard: cardToSacrifice
+            };
+        } else {
+            // 没有匹配的牌，随机弃掉两张
+            if (this.handCards.length >= 2) {
+                const card1Index = Math.floor(Math.random() * this.handCards.length);
+                const card1 = this.handCards[card1Index];
+                this.handCards.splice(card1Index, 1);
+
+                const card2Index = Math.floor(Math.random() * this.handCards.length);
+                const card2 = this.handCards[card2Index];
+                this.handCards.splice(card2Index, 1);
+
+                // 重置献祭状态
+                this.bossRuleData.sacrificeRequired = false;
+                this.bossRuleData.lastPlayedRanks = [];
+
+                return {
+                    success: true,
+                    message: `无匹配点数的牌，随机献祭了 ${card1.rank} 和 ${card2.rank}`,
+                    sacrificedCards: [card1, card2]
+                };
+            } else if (this.handCards.length === 1) {
+                // 只剩一张牌，弃掉这张
+                const card = this.handCards[0];
+                this.handCards.splice(0, 1);
+
+                // 重置献祭状态
+                this.bossRuleData.sacrificeRequired = false;
+                this.bossRuleData.lastPlayedRanks = [];
+
+                return {
+                    success: true,
+                    message: `无匹配点数的牌，献祭了最后一张 ${card.rank}`,
+                    sacrificedCard: card
+                };
+            } else {
+                // 没有手牌了
+                this.bossRuleData.sacrificeRequired = false;
+                this.bossRuleData.lastPlayedRanks = [];
+                return { success: true, message: '手牌已空，无需献祭' };
+            }
         }
     }
 
@@ -826,6 +891,20 @@ class GameState {
             this.actionPoints += this.bossRuleData.permanentActionBonus;
         }
 
+        // 永久道具：存钱罐 - 每回合开始时获得分数
+        this.permanentItems.forEach(item => {
+            if (item.id === 'piggy_gold') {
+                this.score += 20;
+                this.levelScore += 20;
+            } else if (item.id === 'piggy_diamond') {
+                this.score += 50;
+                this.levelScore += 50;
+            } else if (item.id === 'piggy_king') {
+                this.score += 100;
+                this.levelScore += 100;
+            }
+        });
+
         // Boss规则：混乱法师 - 每回合重新随机交换牌型消耗
         if (this.isBossLevel && this.bossRule === 'chaosMage') {
             const patterns = ['SINGLE', 'PAIR', 'TRIPLE', 'STRAIGHT', 'BOMB'];
@@ -859,19 +938,20 @@ class GameState {
             ? this.maxRounds
             : this.maxRounds + 1;
 
-        if (this.round <= maxAllowedRound) {
+        // 检查是否超过最大回合数
+        if (this.round > maxAllowedRound) {
+            // 超过最大回合数且还有手牌，游戏失败
+            if (this.handCards.length > 0) {
+                this.gameOver = true;
+                this.rating = null;  // 失败无评价
+            }
+        } else {
+            // 还在允许的回合数内，抽牌
             const drawnCards = this.drawCards(3);
             if (drawnCards.length > 0) {
                 // 返回抽到的牌信息,用于UI显示
                 this.lastDrawnCards = drawnCards;
             }
-        }
-
-        // 超过最大回合数且还有手牌，游戏失败
-        // Boss关：完美主义者在第2回合后失败
-        if (this.round > maxAllowedRound && this.handCards.length > 0) {
-            this.gameOver = true;
-            this.rating = null;  // 失败无评价
         }
     }
 
@@ -883,22 +963,7 @@ class GameState {
         this.discardScorePerCard = 0;
 
         this.permanentItems.forEach(item => {
-            if (item.id === 'piggy_gold') {
-                // 只在第1关应用分数加成，避免每关重复累加
-                if (this.level === 1) {
-                    this.score += 20;
-                }
-            } else if (item.id === 'piggy_diamond') {
-                // 只在第1关应用分数加成，避免每关重复累加
-                if (this.level === 1) {
-                    this.score += 50;
-                }
-            } else if (item.id === 'piggy_king') {
-                // 只在第1关应用分数加成，避免每关重复累加
-                if (this.level === 1) {
-                    this.score += 100;
-                }
-            } else if (item.id === 'lucky_clover') {
+            if (item.id === 'lucky_clover') {
                 // 20%概率获得随机王牌
                 if (Math.random() < 0.2) {
                     const jokerCard = Math.random() < 0.5 ?
@@ -1188,17 +1253,59 @@ class GameState {
     // 开始限时计时
     startTurnTimer() {
         this.turnStartTime = Date.now();
+        // 重置暂停相关状态
+        this.turnTimerPaused = false;
+        this.turnPauseStartTime = null;
+        this.turnTotalPausedTime = 0;
     }
 
     // 停止计时器
     stopTurnTimer() {
         this.turnStartTime = null;
+        this.turnTimerPaused = false;
+        this.turnPauseStartTime = null;
+        this.turnTotalPausedTime = 0;
+    }
+
+    // 暂停倒计时（打开商店或特质选择界面时调用）
+    pauseTurnTimer() {
+        if (this.specialRule !== 'timeLimit' || !this.turnStartTime || this.turnTimerPaused) {
+            return;
+        }
+        this.turnTimerPaused = true;
+        this.turnPauseStartTime = Date.now();
+    }
+
+    // 恢复倒计时（关闭商店或特质选择界面时调用）
+    resumeTurnTimer() {
+        if (this.specialRule !== 'timeLimit' || !this.turnStartTime || !this.turnTimerPaused) {
+            return;
+        }
+        // 累计本次暂停的时间
+        if (this.turnPauseStartTime) {
+            this.turnTotalPausedTime += (Date.now() - this.turnPauseStartTime);
+        }
+        this.turnTimerPaused = false;
+        this.turnPauseStartTime = null;
     }
 
     // 获取剩余时间(秒)
     getRemainingTime() {
         if (!this.turnStartTime) return this.turnTimeLimit;
-        const elapsed = Math.floor((Date.now() - this.turnStartTime) / 1000);
+
+        // 计算实际经过的时间，需要减去暂停时间
+        let totalElapsed = Date.now() - this.turnStartTime;
+
+        // 如果当前正在暂停，计算当前暂停时长
+        if (this.turnTimerPaused && this.turnPauseStartTime) {
+            const currentPauseDuration = Date.now() - this.turnPauseStartTime;
+            totalElapsed -= (this.turnTotalPausedTime + currentPauseDuration);
+        } else {
+            // 如果没有暂停，减去之前累计的暂停时间
+            totalElapsed -= this.turnTotalPausedTime;
+        }
+
+        const elapsed = Math.floor(totalElapsed / 1000);
         return Math.max(0, this.turnTimeLimit - elapsed);
     }
 
@@ -1208,64 +1315,6 @@ class GameState {
             return false;
         }
         return this.getRemainingTime() <= 0;
-    }
-
-    // 比较牌型大小（用于贪婪地主boss规则）
-    canBeatPattern(currentPattern, currentKey, lastPattern) {
-        if (!lastPattern) return true;
-
-        const lastKey = lastPattern.name;
-        const lastCards = lastPattern.cards;
-
-        // 炸弹和火箭可以压任何牌
-        if (currentKey === 'BOMB' || currentKey === 'ROCKET') {
-            return true;
-        }
-
-        // 如果上一手是炸弹或火箭，只能用更大的炸弹或火箭压
-        if (lastKey === 'ROCKET') {
-            return false;  // 火箭最大，无法压制
-        }
-        if (lastKey === 'BOMB') {
-            if (currentKey === 'BOMB') {
-                // 比较炸弹大小（比较第一张牌的value）
-                return currentPattern.cards[0].value > lastCards[0].value;
-            }
-            return false;
-        }
-
-        // 普通牌型：必须同类型且更大
-        if (currentKey !== lastKey) {
-            return false;  // 不同类型无法比较
-        }
-
-        // 同类型比较：比较主牌的value
-        // 对于单牌、对子、三张等，比较第一张牌
-        if (['SINGLE', 'PAIR', 'TRIPLE', 'TRIPLE_SINGLE', 'TRIPLE_PAIR'].includes(currentKey)) {
-            return currentPattern.cards[0].value > lastCards[0].value;
-        }
-
-        // 顺子、连对、飞机：比较最小的牌
-        if (['STRAIGHT', 'DOUBLE_STRAIGHT', 'AIRPLANE', 'AIRPLANE_SINGLE_WINGS', 'AIRPLANE_PAIR_WINGS'].includes(currentKey)) {
-            // 找到最小的牌
-            const currentMin = Math.min(...currentPattern.cards.map(c => c.value));
-            const lastMin = Math.min(...lastCards.map(c => c.value));
-            return currentMin > lastMin;
-        }
-
-        // 四带二
-        if (currentKey === 'FOUR_PAIR') {
-            // 找到四张相同的牌
-            const currentFour = currentPattern.cards.find(c =>
-                currentPattern.cards.filter(cc => cc.rank === c.rank).length === 4
-            );
-            const lastFour = lastCards.find(c =>
-                lastCards.filter(cc => cc.rank === c.rank).length === 4
-            );
-            return currentFour.value > lastFour.value;
-        }
-
-        return false;
     }
 
     // 处理超时
@@ -1292,17 +1341,6 @@ class GameState {
         let rewardMessage = '';
 
         switch (this.bossRule) {
-            case 'greedyLandlord':
-                // 贪婪地主：通关后金币+150
-                // 特质：经济头脑 - 金币奖励减少30%
-                let coinReward = 150;
-                if (this.currentTrait && this.currentTrait.id === 'economic_mind') {
-                    coinReward = Math.floor(150 * 0.7); // 105金币
-                }
-                this.coins += coinReward;
-                rewardMessage = `Boss奖励：获得${coinReward}金币！`;
-                break;
-
             case 'perfectionist':
                 // 完美主义者：本局游戏剩余所有关卡，积分获取永久+20%
                 this.bossRuleData.permanentScoreBonus = 0.2;
@@ -1326,6 +1364,12 @@ class GameState {
                 // 压力测试者：本局游戏剩余所有关卡，每回合行动点+1
                 this.bossRuleData.permanentActionBonus = 1;
                 rewardMessage = 'Boss奖励：本局游戏每回合行动点+1！';
+                break;
+
+            case 'sacrificer':
+                // 献祭者：永久获得弃牌点上限+2
+                this.maxDiscardPoints += 2;
+                rewardMessage = 'Boss奖励：弃牌点上限永久+2！';
                 break;
         }
 

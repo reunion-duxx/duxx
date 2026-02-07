@@ -172,11 +172,11 @@ class UIRenderer {
             this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
 
             const bossRuleNames = {
-                'greedyLandlord': '👑 Boss: 贪婪地主 - 每手牌必须比上一手更大',
                 'perfectionist': '💎 Boss: 完美主义者 - 2回合内完成，积分需达1.5倍',
                 'orderGuardian': '🛡️ Boss: 秩序守护者 - 按顺序解锁牌型',
                 'chaosMage': '🎭 Boss: 混乱法师 - 每回合随机交换牌型消耗',
-                'pressureTester': '⚡ Boss: 压力测试者 - 无法弃牌，手牌>15张会惩罚'
+                'pressureTester': '⚡ Boss: 压力测试者 - 无法弃牌，手牌>15张会惩罚',
+                'sacrificer': '🔥 Boss: 献祭者 - 出牌后必须献祭相同点数的牌'
             };
 
             const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
@@ -279,11 +279,11 @@ class UIRenderer {
             this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
 
             const bossRuleNames = {
-                'greedyLandlord': '👑 贪婪地主',
                 'perfectionist': '💎 完美主义',
                 'orderGuardian': '🛡️ 秩序守护',
                 'chaosMage': '🎭 混乱法师',
-                'pressureTester': '⚡ 压力测试'
+                'pressureTester': '⚡ 压力测试',
+                'sacrificer': '🔥 献祭者'
             };
 
             const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';

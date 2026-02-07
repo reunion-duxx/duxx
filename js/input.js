@@ -146,6 +146,11 @@ class InputHandler {
 
     // 处理出牌
     handlePlay() {
+        // 检查游戏是否已经结束
+        if (this.gameState.gameOver) {
+            return;
+        }
+
         if (this.selectedCards.length === 0) {
             alert('请先选择要出的牌!');
             return;
@@ -190,7 +195,13 @@ class InputHandler {
         }
 
         // 出牌（传入patternKey用于正确扣除行动点）
-        this.gameState.playCards(cards, pattern, patternKey);
+        const playResult = this.gameState.playCards(cards, pattern, patternKey);
+
+        // 检查出牌是否成功
+        if (playResult && !playResult.success) {
+            alert(playResult.message);
+            return;
+        }
 
         // 限时关卡：出牌后重启计时器（重新开始30秒）
         if (this.gameState.specialRule === 'timeLimit') {
@@ -272,6 +283,15 @@ class InputHandler {
         // 清空选择
         this.selectedCards = [];
 
+        // 献祭者Boss：出牌后立即执行献祭
+        if (this.gameState.isBossLevel && this.gameState.bossRule === 'sacrificer' &&
+            this.gameState.bossRuleData.sacrificeRequired) {
+            const sacrificeResult = this.gameState.performSacrifice();
+            if (sacrificeResult.success) {
+                alert(`🔥 献祭者Boss规则触发！\n\n${sacrificeResult.message}`);
+            }
+        }
+
         // 检查是否胜利
         if (this.gameState.checkWinCondition()) {
             this.handleWin();
@@ -284,6 +304,11 @@ class InputHandler {
 
     // 处理结束回合
     handleEndRound() {
+        // 检查游戏是否已经结束
+        if (this.gameState.gameOver) {
+            return;
+        }
+
         // 教程模式: 只允许在步骤5时结束回合
         if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
             if (window.game.tutorialManager.getCurrentStepId() !== 'end_round') {
@@ -332,8 +357,13 @@ class InputHandler {
             alert(`新回合开始!\n抽取了${this.gameState.lastDrawnCards.length}张牌: ${cardNames}\n牌库剩余: ${this.gameState.deckCards.length}张`);
         }
 
+        // 检查是否胜利
+        if (this.gameState.checkWinCondition()) {
+            console.log('[handleEndRound] 检测到通关条件满足，调用 handleWin()');
+            this.handleWin();
+        }
         // 检查是否失败
-        if (this.gameState.checkLoseCondition()) {
+        else if (this.gameState.checkLoseCondition()) {
             this.handleLose();
         } else if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
             // 教程模式: 不打开商店
@@ -346,6 +376,11 @@ class InputHandler {
 
     // 处理弃牌
     handleDiscard() {
+        // 检查游戏是否已经结束
+        if (this.gameState.gameOver) {
+            return;
+        }
+
         // 检查手牌数量
         if (this.gameState.handCards.length <= 5) {
             alert('手牌数不足，无法弃牌！（需要至少6张手牌）');
@@ -428,6 +463,9 @@ class InputHandler {
 
     // 打开商店
     openShop() {
+        // 暂停限时关卡的倒计时
+        this.gameState.pauseTurnTimer();
+
         // 在打开商店前应用评价倍率
         if (this.gameState.rating) {
             const beforeScore = this.gameState.score;
@@ -564,6 +602,11 @@ class InputHandler {
     closeShop() {
         document.getElementById('shopModal').style.display = 'none';
 
+        // 限时关卡：重新启动倒计时（重置为30秒）
+        if (this.gameState.specialRule === 'timeLimit') {
+            this.gameState.startTurnTimer();
+        }
+
         // 修复：如果在商店中购买了行动点透支道具，立即应用惩罚
         // 这样惩罚会在下回合生效，而不是下下回合
         if (this.gameState.actionPenaltyNextRound > 0) {
@@ -634,6 +677,7 @@ class InputHandler {
 
     // 处理胜利
     handleWin() {
+        console.log('[handleWin] 开始执行通关逻辑');
         this.gameState.gameOver = true;
 
         // 播放胜利音效
@@ -644,6 +688,8 @@ class InputHandler {
         const resultModal = document.getElementById('resultModal');
         const resultTitle = document.getElementById('resultTitle');
         const resultMessage = document.getElementById('resultMessage');
+
+        console.log('[handleWin] 模态框元素:', resultModal, resultTitle, resultMessage);
 
         resultTitle.textContent = '通关成功!';
         resultTitle.style.color = '#2ecc71';
@@ -710,11 +756,11 @@ class InputHandler {
                 if (this.gameState.isBossLevel && this.gameState.bossRule) {
                     setTimeout(() => {
                         const bossMessages = {
-                            'greedyLandlord': '👑 Boss关: 贪婪地主\n\n规则：每手牌必须比上一手更大！\n首轮出牌不限，之后必须遵循斗地主大小规则。\n炸弹和火箭可以压任何牌。\n\n奖励：通关后获得150金币',
                             'perfectionist': '💎 Boss关: 完美主义者\n\n规则：必须在2回合内出完所有手牌\n且总积分必须达到1.5倍要求\n\n奖励：本局游戏剩余关卡积分获取+20%',
                             'orderGuardian': '🛡️ Boss关: 秩序守护者\n\n规则：必须按顺序出牌型\n单牌→对子→[三张/三带一/三带二]→顺子→连对→[飞机/飞机带单翅膀/飞机带对翅膀]→炸弹→四带二\n方括号内的牌型打出任意一种即可解锁下一组\n火箭可随时打出\n\n奖励：永久行动点+2（本局游戏）',
                             'chaosMage': '🎭 Boss关: 混乱法师\n\n规则：每回合开始时随机交换两种牌型的行动点消耗\n牌型积分不变\n\n奖励：随机获得2个商店道具（免费）',
-                            'pressureTester': '⚡ Boss关: 压力测试者\n\n规则：无法主动弃牌\n回合结束时若手牌超过15张\n超出部分每张使下回合行动点-1\n\n奖励：本局游戏剩余关卡每回合行动点+1'
+                            'pressureTester': '⚡ Boss关: 压力测试者\n\n规则：无法主动弃牌\n回合结束时若手牌超过15张\n超出部分每张使下回合行动点-1\n\n奖励：本局游戏剩余关卡每回合行动点+1',
+                            'sacrificer': '🔥 Boss关: 献祭者\n\n规则：每次打出一手牌后\n必须立即从手牌中弃掉一张与所出牌型中任意一张牌点数相同的牌\n若手牌中没有可匹配点数的牌\n则改为随机弃掉两张手牌\n\n奖励：永久获得弃牌点上限+2'
                         };
                         const message = bossMessages[this.gameState.bossRule];
                         if (message) alert(message);
@@ -737,8 +783,6 @@ class InputHandler {
                         if (message) alert(message);
                     }, 500);
                 }
-
-                this.openShop();
             };
         }
 
@@ -746,9 +790,10 @@ class InputHandler {
         Statistics.recordGame(this.gameState.level, this.gameState.score, true);
 
         document.getElementById('retryBtn').style.display = 'none';
-        document.getElementById('fallbackBtn').style.display = 'none';
 
+        console.log('[handleWin] 准备显示模态框');
         resultModal.style.display = 'flex';
+        console.log('[handleWin] 模态框已设置为 display: flex');
     }
 
     // 处理失败
@@ -782,25 +827,12 @@ class InputHandler {
         // 记录统计
         Statistics.recordGame(this.gameState.level, this.gameState.score, false);
 
-        // 显示重试和回退按钮
+        // 显示重试按钮
         document.getElementById('nextLevelBtn').style.display = 'none';
         document.getElementById('retryBtn').style.display = 'inline-block';
-        document.getElementById('fallbackBtn').style.display = 'inline-block';
 
         document.getElementById('retryBtn').onclick = () => {
             LevelManager.retryLevel(this.gameState);
-            SaveManager.save(this.gameState);
-            this.selectedCards = [];
-            resultModal.style.display = 'none';
-
-            // 显示特质选择界面
-            setTimeout(() => {
-                this.showTraitSelection();
-            }, 100);
-        };
-
-        document.getElementById('fallbackBtn').onclick = () => {
-            LevelManager.fallbackLevel(this.gameState);
             SaveManager.save(this.gameState);
             this.selectedCards = [];
             resultModal.style.display = 'none';
@@ -836,6 +868,9 @@ class InputHandler {
             return;
         }
 
+        // 暂停限时关卡的倒计时
+        this.gameState.pauseTurnTimer();
+
         this.renderer.renderTraitSelection(this.gameState.availableTraits, (selectedTrait) => {
             this.handleTraitSelection(selectedTrait);
         });
@@ -845,6 +880,18 @@ class InputHandler {
     handleTraitSelection(trait) {
         this.gameState.currentTrait = trait;
         this.gameState.traitSelected = true;
+
+        // 特质：以逸待劳 - 立即应用弃牌点上限减少
+        if (trait.id === 'rest_and_wait') {
+            this.gameState.maxDiscardPoints = 3;
+            // 如果当前弃牌点超过新上限，调整为上限值
+            if (this.gameState.discardPoints > 3) {
+                this.gameState.discardPoints = 3;
+            }
+        }
+
+        // 恢复限时关卡的倒计时
+        this.gameState.resumeTurnTimer();
 
         // 播放音效
         if (window.audioManager) {
