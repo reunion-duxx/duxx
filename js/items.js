@@ -107,13 +107,9 @@ class ItemFactory {
             type: 'positive',
             description: '额外增加1个回合(最多使用2次)',
             effect: (gameState) => {
+                // 直接增加最大回合数
                 gameState.maxRounds++;
-                // 如果当前回合已经超过原最大回合，需要回退当前回合数
-                // 这样才能真正"增加"一个可用回合
-                if (gameState.round > gameState.maxRounds - 1) {
-                    gameState.round--;
-                }
-                return { success: true, message: '回合数+1!' };
+                return { success: true, message: `回合数+1! 当前最大回合数: ${gameState.maxRounds}` };
             }
         },
 
@@ -568,8 +564,125 @@ class ItemFactory {
                 gameState.discardScorePerCard = 3;
                 return { success: true, message: '永久道具已购买!', permanent: true };
             }
+        },
+
+        // ===== 传奇道具 =====
+        'destiny_scale': {
+            name: '命运天秤',
+            price: 1000,
+            type: 'legendary',
+            description: '购买后，立即将当前总积分的一半（向下取整）转化为等额金币',
+            effect: (gameState) => {
+                const halfScore = Math.floor(gameState.score / 2);
+                gameState.score += halfScore;
+                return { success: true, message: `命运天秤生效！获得${halfScore}分！` };
+            }
+        },
+
+        'rule_rewriter': {
+            name: '法则改写器',
+            price: 1200,
+            type: 'legendary',
+            description: '移除本关的负面规则（不能移除Boss规则）',
+            effect: (gameState) => {
+                // 优先移除negativeRule（侵蚀、消耗递增、点数税、单调牌序）
+                if (gameState.negativeRule) {
+                    const ruleNames = {
+                        'erosion': '侵蚀',
+                        'costIncrease': '消耗递增',
+                        'rankTax': '点数税',
+                        'monotone': '单调牌序'
+                    };
+                    const removedRule = ruleNames[gameState.negativeRule] || '负面规则';
+
+                    // 清除负面规则及其相关数据
+                    gameState.negativeRule = null;
+                    gameState.negativeRuleData = {};
+                    gameState.lockedCards = [];
+                    gameState.patternPlayCount = {};
+                    gameState.lastPlayedPatternName = null;
+
+                    return { success: true, message: `法则改写器生效！移除了${removedRule}规则！` };
+                }
+                // 其次移除specialRule（时间限制、双倍消耗）
+                else if (gameState.specialRule) {
+                    const removedRule = gameState.specialRule === 'timeLimit' ? '时间限制' : '双倍消耗';
+                    gameState.specialRule = null;
+                    gameState.specialRuleData = null;
+                    gameState.turnTimeLimit = null;
+                    gameState.turnStartTime = null;
+                    return { success: true, message: `法则改写器生效！移除了${removedRule}规则！` };
+                }
+                else {
+                    return { success: false, message: '本关没有负面规则！' };
+                }
+            }
+        },
+
+        'perfect_moment': {
+            name: '完美时刻',
+            price: 1000,
+            type: 'legendary',
+            description: '购买后，把本回合剩余的所有行动点转化为等额弃牌点，然后结束本回合',
+            effect: (gameState) => {
+                // 获取当前剩余的行动点
+                const remainingActionPoints = gameState.actionPoints;
+
+                if (remainingActionPoints <= 0) {
+                    return { success: false, message: '当前没有剩余行动点！' };
+                }
+
+                // 将行动点转化为弃牌点
+                gameState.discardPoints += remainingActionPoints;
+
+                // 清空行动点
+                gameState.actionPoints = 0;
+
+                // 标记需要结束回合
+                gameState.perfectMomentEndRound = true;
+
+                return {
+                    success: true,
+                    message: `完美时刻生效！将${remainingActionPoints}点行动点转化为弃牌点，本回合结束！`,
+                    endRound: true  // 告知调用者需要结束回合
+                };
+            }
+        },
+
+        'single_card_king': {
+            name: '单牌之王',
+            price: 750,
+            type: 'legendary',
+            description: '本局游戏中，你打出的所有单牌基础积分变为30分。限制：启用后，你无法再打出任何顺子',
+            effect: (gameState) => {
+                gameState.singleCardKingActive = true;
+                // 封印顺子
+                if (!gameState.sealedPatterns) {
+                    gameState.sealedPatterns = [];
+                }
+                if (!gameState.sealedPatterns.includes('顺子')) {
+                    gameState.sealedPatterns.push('顺子');
+                }
+                return { success: true, message: '单牌之王激活！所有单牌基础积分变为30分！（顺子已被封印）' };
+            }
         }
     };
+
+    // 检查是否有炸弹的辅助函数
+    static checkForBomb(handCards) {
+        const valueCount = {};
+        handCards.forEach(card => {
+            valueCount[card.value] = (valueCount[card.value] || 0) + 1;
+        });
+        return Object.values(valueCount).some(count => count >= 4);
+    }
+
+    // 检查是否有火箭的辅助函数
+    static checkForRocket(handCards) {
+        const hasSmallJoker = handCards.some(c => c.rank === '小王');
+        const hasBigJoker = handCards.some(c => c.rank === '大王');
+        return hasSmallJoker && hasBigJoker;
+    }
 
     static createItem(id) {
         const data = this.ITEMS[id];
@@ -582,8 +695,83 @@ class ItemFactory {
         return Object.keys(this.ITEMS);
     }
 
-    static getRandomItems(count, excludePermanent = false, excludeItemIds = []) {
-        let itemIds = this.getAllItemIds();
+    // 根据关卡获取可用的道具ID列表
+    static getAvailableItemIdsByLevel(level) {
+        // 道具编号映射（根据游戏设计文档）
+        const itemIdMap = {
+            1: 'compass',                    // 配对指南针
+            2: 'joker_mask',                 // 小丑面具
+            3: 'deck_reforge',               // 牌堆重铸
+            4: 'bomb_factory',               // 炸弹工坊
+            5: 'hourglass',                  // 回合沙漏
+            6: 'rocket_booster',             // 火箭助推器
+            7: 'hand_remover',               // 手牌清理器
+            8: 'card_upgrader',              // 牌张升级器
+            9: 'action_charger',             // 行动点充能器
+            10: 'action_expander',           // 行动点扩容器
+            11: 'energy_saver',              // 节能模式
+            12: 'exchange_card',             // 以旧换新
+            13: 'abandon_weapon_for_literature', // 弃武从文
+            14: 'offense_defense_swap',      // 攻守易势
+            15: 'backwater_battle',          // 背水一战
+            16: 'desperate_stake',           // 孤注一掷
+            17: 'chain_reaction',            // 连锁效应
+            18: 'sacrifice_piece',           // 弃卒保车
+            19: 'score_double',              // 积分翻倍
+            20: 'risky_victory',             // 险中求胜
+            21: 'gambler_dice',              // 赌徒骰子
+            22: 'chaos_shuffle',             // 混乱洗牌
+            23: 'overdraw',                  // 透支未来
+            24: 'pattern_seal',              // 牌型封印
+            25: 'time_accel',                // 时间加速
+            26: 'action_overdraft',          // 行动点透支
+            27: 'piggy_gold',                // 黄金存钱罐
+            28: 'piggy_diamond',             // 钻石存钱罐
+            29: 'piggy_king',                // 王者存钱罐
+            30: 'lucky_clover',              // 幸运四叶草
+            31: 'permanent_action_boost',    // 行动点核心
+            32: 'permanent_discard_draw_extra', // 弃旧图新
+            33: 'permanent_discard_score_bonus',  // 去粗取精
+            34: 'destiny_scale',             // 命运天秤（传奇）
+            35: 'rule_rewriter',             // 法则改写器（传奇）
+            36: 'perfect_moment',            // 完美时刻（传奇）
+            37: 'single_card_king'           // 单牌之王（传奇）
+        };
+
+        // 第1-3关：只出现1,9,11,12,14,18,19,20,21,22号道具
+        const stage1Items = [
+            itemIdMap[1], itemIdMap[9], itemIdMap[11], itemIdMap[12],
+            itemIdMap[14], itemIdMap[18], itemIdMap[19], itemIdMap[20],
+            itemIdMap[21], itemIdMap[22]
+        ];
+
+        // 第4-7关：之前所有道具 + 4,8,10,13,15,16,17,23,24,26,31,32,33号道具
+        const stage2Items = [
+            ...stage1Items,
+            itemIdMap[4], itemIdMap[8], itemIdMap[10], itemIdMap[13],
+            itemIdMap[15], itemIdMap[16], itemIdMap[17], itemIdMap[23],
+            itemIdMap[24], itemIdMap[26], itemIdMap[31], itemIdMap[32],
+            itemIdMap[33]
+        ];
+
+        // 第8-10关：所有道具
+        const stage3Items = Object.values(itemIdMap);
+
+        if (level <= 3) {
+            return stage1Items;
+        } else if (level <= 7) {
+            return stage2Items;
+        } else {
+            return stage3Items;
+        }
+    }
+
+    static getRandomItems(count, excludePermanent = false, excludeItemIds = [], level = 1) {
+        // 根据关卡获取可用道具池
+        let itemIds = this.getAvailableItemIdsByLevel(level);
+
+        // 始终排除传奇道具（传奇道具只在专属栏位显示）
+        itemIds = itemIds.filter(id => this.ITEMS[id].type !== 'legendary');
 
         if (excludePermanent) {
             itemIds = itemIds.filter(id => this.ITEMS[id].type !== 'permanent');
@@ -609,6 +797,7 @@ class ItemFactory {
 class Shop {
     constructor() {
         this.currentItems = [];
+        this.legendaryItem = null;  // 传奇道具栏位
         this.usedThisRound = false;  // 标记本轮商店是否已使用
     }
 
@@ -620,11 +809,42 @@ class Shop {
         // 获取已拥有的永久道具ID列表
         const ownedPermanentIds = gameState.permanentItems.map(item => item.id);
 
-        // 每回合随机刷新4个道具，排除已拥有的永久道具
-        this.currentItems = ItemFactory.getRandomItems(4, !showPermanent, ownedPermanentIds);
+        // 每回合随机刷新4个道具，排除已拥有的永久道具，并根据关卡筛选可用道具
+        this.currentItems = ItemFactory.getRandomItems(4, !showPermanent, ownedPermanentIds, gameState.level);
+
+        // 第7关后，刷新传奇道具栏位
+        if (gameState.level >= 7) {
+            this.refreshLegendaryItem(gameState);
+        } else {
+            this.legendaryItem = null;
+        }
 
         // 新商店重置使用标记
         this.usedThisRound = false;
+    }
+
+    // 刷新传奇道具栏位
+    refreshLegendaryItem(gameState) {
+        // 初始化已购买的传奇道具列表
+        if (!gameState.purchasedLegendaryItems) {
+            gameState.purchasedLegendaryItems = [];
+        }
+
+        // 所有传奇道具ID
+        const legendaryIds = ['destiny_scale', 'rule_rewriter', 'perfect_moment', 'single_card_king'];
+
+        // 过滤出未购买的传奇道具
+        const availableLegendaryIds = legendaryIds.filter(id => !gameState.purchasedLegendaryItems.includes(id));
+
+        // 如果所有传奇道具都已购买，隐藏传奇栏位
+        if (availableLegendaryIds.length === 0) {
+            this.legendaryItem = null;
+            return;
+        }
+
+        // 随机选择一个未购买的传奇道具
+        const randomId = availableLegendaryIds[Math.floor(Math.random() * availableLegendaryIds.length)];
+        this.legendaryItem = ItemFactory.createItem(randomId);
     }
 
     // 购买道具
@@ -634,10 +854,33 @@ class Shop {
             return { success: false, message: '本轮商店已使用过一次，下一轮再来!' };
         }
 
-        // 特质：经济头脑 - 商店所有道具价格降低30%
+        // 基础价格
         let finalPrice = item.price;
+
+        // 商店涨价机制（正面道具和永久道具，负面道具除外）
+        // 5-7关：每关上涨15%（向下取整）
+        // 8-10关：每关上涨25%（向下取整）
+        if (gameState.level >= 5 && (item.type === 'positive' || item.type === 'permanent')) {
+            let priceMultiplier = 1;
+
+            if (gameState.level >= 5 && gameState.level <= 7) {
+                // 第5关: ×1.15, 第6关: ×1.15², 第7关: ×1.15³
+                priceMultiplier = Math.pow(1.15, gameState.level - 4);
+            } else if (gameState.level >= 8) {
+                // 第8-10关：先计算5-7关的累积涨幅，再叠加8-10关的涨幅
+                // 第7关结束时的倍率：1.15³ = 1.520875
+                const level7Multiplier = Math.pow(1.15, 3);
+                // 第8关开始额外涨幅：第8关×1.25, 第9关×1.25², 第10关×1.25³
+                const level8PlusMultiplier = Math.pow(1.25, gameState.level - 7);
+                priceMultiplier = level7Multiplier * level8PlusMultiplier;
+            }
+
+            finalPrice = Math.floor(item.price * priceMultiplier);
+        }
+
+        // 特质：经济头脑 - 商店所有道具价格降低30%
         if (gameState.currentTrait && gameState.currentTrait.id === 'economic_mind') {
-            finalPrice = Math.floor(item.price * 0.7);
+            finalPrice = Math.floor(finalPrice * 0.7);
         }
 
         // 负面道具是给钱的
@@ -662,6 +905,34 @@ class Shop {
                 gameState.score += finalPrice; // 退款
                 return { success: false, message: '已拥有此永久道具!' };
             }
+        }
+
+        // 传奇道具：立即生效
+        if (item.type === 'legendary') {
+            // 初始化已购买的传奇道具列表
+            if (!gameState.purchasedLegendaryItems) {
+                gameState.purchasedLegendaryItems = [];
+            }
+
+            // 检查是否已购买
+            if (gameState.purchasedLegendaryItems.includes(item.id)) {
+                gameState.score += finalPrice; // 退款
+                return { success: false, message: '已购买过此传奇道具!' };
+            }
+
+            // 先执行道具效果
+            const result = item.effect(gameState);
+
+            // 只有在效果成功时才标记已使用和记录购买
+            if (result.success) {
+                this.usedThisRound = true;  // 标记已使用
+                gameState.purchasedLegendaryItems.push(item.id);
+            } else {
+                // 效果失败，退款
+                gameState.score += finalPrice;
+            }
+
+            return result;
         }
 
         // 立即生效的负面道具（如牌型封印）

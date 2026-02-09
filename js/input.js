@@ -130,6 +130,14 @@ class InputHandler {
 
     // 切换卡牌选中状态
     toggleCardSelection(index) {
+        // 负面规则：侵蚀 - 锁定的卡牌无法选择
+        if (this.gameState.negativeRule === 'erosion' &&
+            this.gameState.lockedCards &&
+            this.gameState.lockedCards.includes(index)) {
+            alert('该卡牌已被侵蚀规则锁定，无法使用！');
+            return;
+        }
+
         const idx = this.selectedCards.indexOf(index);
         if (idx === -1) {
             this.selectedCards.push(index);
@@ -157,9 +165,13 @@ class InputHandler {
         }
 
         // 动态检查回合是否用完
-        const maxAllowedRound = (this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist')
-            ? this.gameState.maxRounds
-            : this.gameState.maxRounds + 1;
+        // 完美主义者Boss或第10关：严格限制2回合
+        let maxAllowedRound;
+        if ((this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') || this.gameState.level === 10) {
+            maxAllowedRound = 2;
+        } else {
+            maxAllowedRound = this.gameState.maxRounds + 1;
+        }
         if (this.gameState.round > maxAllowedRound) {
             alert('回合已用完!');
             return;
@@ -196,10 +208,36 @@ class InputHandler {
 
         // 出牌（传入patternKey用于正确扣除行动点）
         const playResult = this.gameState.playCards(cards, pattern, patternKey);
+        console.log('[playCards] playResult:', playResult);
 
         // 检查出牌是否成功
         if (playResult && !playResult.success) {
             alert(playResult.message);
+            return;
+        }
+
+        // 检查是否需要立即显示胜利页面
+        if (playResult && playResult.checkWin) {
+            console.log('[playCards] 检测到 checkWin=true，立即调用 handleWin()');
+            // 立即显示胜利页面
+            this.handleWin();
+            return;
+        }
+
+        // 检查是否手牌出完但积分不足（失败情况）
+        if (this.gameState.handCards.length === 0 && !this.gameState.checkWinCondition()) {
+            console.log('[playCards] 手牌出完但积分不足，触发失败');
+            // 显示失败原因
+            let failReason = '';
+            if (this.gameState.levelScore < this.gameState.levelScoreRequirement) {
+                failReason = `积分未达标！\n本关积分: ${this.gameState.levelScore}/${this.gameState.levelScoreRequirement}\n差距: ${this.gameState.levelScoreRequirement - this.gameState.levelScore}分`;
+            } else if (this.gameState.level === 9 && this.gameState.usedPatternTypes.size < 4) {
+                failReason = `第9关要求使用至少4种不同牌型！\n当前使用: ${this.gameState.usedPatternTypes.size}种`;
+            } else if (this.gameState.level === 10 && this.gameState.round > 2) {
+                failReason = `第10关要求在2回合内出完牌！\n当前回合: ${this.gameState.round}`;
+            }
+            alert(`⚠️ 手牌已出完，但${failReason}`);
+            this.handleLose();
             return;
         }
 
@@ -291,15 +329,6 @@ class InputHandler {
                 alert(`🔥 献祭者Boss规则触发！\n\n${sacrificeResult.message}`);
             }
         }
-
-        // 检查是否胜利
-        if (this.gameState.checkWinCondition()) {
-            this.handleWin();
-        }
-        // 检查是否失败（积分不足）
-        else if (this.gameState.checkLoseCondition()) {
-            this.handleLose();
-        }
     }
 
     // 处理结束回合
@@ -318,9 +347,13 @@ class InputHandler {
         }
 
         // 动态检查回合是否用完
-        const maxAllowedRound = (this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist')
-            ? this.gameState.maxRounds
-            : this.gameState.maxRounds + 1;
+        // 完美主义者Boss或第10关：严格限制2回合
+        let maxAllowedRound;
+        if ((this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') || this.gameState.level === 10) {
+            maxAllowedRound = 2;
+        } else {
+            maxAllowedRound = this.gameState.maxRounds + 1;
+        }
         if (this.gameState.round > maxAllowedRound) {
             alert('回合已用完!');
             return;
@@ -351,6 +384,14 @@ class InputHandler {
             window.audioManager.playRoundEnd();
         }
 
+        // 检查是否失败（在显示抽牌信息之前）
+        if (this.gameState.checkLoseCondition()) {
+            // 回合用完，显示失败提示
+            alert(`⚠️ 回合已用完!\n剩余手牌: ${this.gameState.handCards.length}张\n挑战失败!`);
+            this.handleLose();
+            return;
+        }
+
         // 显示抽牌信息
         if (this.gameState.lastDrawnCards && this.gameState.lastDrawnCards.length > 0) {
             const cardNames = this.gameState.lastDrawnCards.map(c => c.toString()).join(', ');
@@ -361,10 +402,6 @@ class InputHandler {
         if (this.gameState.checkWinCondition()) {
             console.log('[handleEndRound] 检测到通关条件满足，调用 handleWin()');
             this.handleWin();
-        }
-        // 检查是否失败
-        else if (this.gameState.checkLoseCondition()) {
-            this.handleLose();
         } else if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
             // 教程模式: 不打开商店
             return;
@@ -466,40 +503,9 @@ class InputHandler {
         // 暂停限时关卡的倒计时
         this.gameState.pauseTurnTimer();
 
-        // 在打开商店前应用评价倍率
+        // 注意：评价倍率已经在 handleWin() 中应用，这里不再重复处理
+        // 如果 rating 仍然存在（理论上不应该），清除它以防万一
         if (this.gameState.rating) {
-            const beforeScore = this.gameState.score;
-            this.gameState.applyRatingBonus();
-            const afterScore = this.gameState.score;
-
-            // 显示评价信息
-            let ratingMessage = '';
-
-            // 豪赌模式的特殊消息
-            if (this.gameState.gambleLevelActive) {
-                if (this.gameState.rating === 'S') {
-                    ratingMessage = `🎰 豪赌成功！S评价达成！\n(${this.gameState.finishRound}回合内完成)\n金币翻倍: ${beforeScore} → ${afterScore}分`;
-                } else if (this.gameState.rating === 'A') {
-                    ratingMessage = `💔 豪赌失败... A评价\n(${this.gameState.finishRound}回合完成)\n金币减半: ${beforeScore} → ${afterScore}分`;
-                } else if (this.gameState.rating === 'B') {
-                    ratingMessage = `💔 豪赌失败... B评价\n(${this.gameState.finishRound}回合完成)\n金币减半: ${beforeScore} → ${afterScore}分`;
-                }
-            } else {
-                // 原有的评级消息
-                if (this.gameState.rating === 'S') {
-                    ratingMessage = `🏆 S评价达成! (${this.gameState.finishRound}回合内完成)\n金币奖励 +20%: ${beforeScore} → ${afterScore}分`;
-                } else if (this.gameState.rating === 'A') {
-                    ratingMessage = `⭐ A评价达成! (${this.gameState.finishRound}回合内完成)\n金币保持不变: ${afterScore}分`;
-                } else if (this.gameState.rating === 'B') {
-                    ratingMessage = `📉 B评价 (${this.gameState.finishRound}回合完成)\n金币惩罚 -50%: ${beforeScore} → ${afterScore}分`;
-                }
-            }
-
-            if (ratingMessage) {
-                alert(ratingMessage);
-            }
-
-            // 评价只应用一次，应用后清除
             this.gameState.rating = null;
         }
 
@@ -549,6 +555,63 @@ class InputHandler {
             shopItems.appendChild(usedHint);
         }
 
+        // 渲染传奇道具栏位（第7关后）
+        if (this.shop.legendaryItem) {
+            const legendarySection = document.createElement('div');
+            legendarySection.style.marginBottom = '20px';
+            legendarySection.style.borderTop = '2px solid #ffd700';
+            legendarySection.style.paddingTop = '15px';
+
+            const legendaryTitle = document.createElement('div');
+            legendaryTitle.textContent = '⭐ 传奇道具 ⭐';
+            legendaryTitle.style.color = '#ffd700';
+            legendaryTitle.style.fontSize = '12px';
+            legendaryTitle.style.textAlign = 'center';
+            legendaryTitle.style.marginBottom = '10px';
+            legendaryTitle.style.fontWeight = 'bold';
+            legendarySection.appendChild(legendaryTitle);
+
+            const item = this.shop.legendaryItem;
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `shop-item ${item.type}`;
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'shop-item-name';
+            nameDiv.textContent = item.name;
+            nameDiv.style.color = '#ffd700';
+
+            const descDiv = document.createElement('div');
+            descDiv.className = 'shop-item-desc';
+            descDiv.textContent = item.description;
+
+            const priceDiv = document.createElement('div');
+            priceDiv.className = 'shop-item-price';
+            priceDiv.textContent = `${item.price}分`;
+            priceDiv.style.color = '#ffd700';
+
+            itemDiv.appendChild(nameDiv);
+            itemDiv.appendChild(descDiv);
+            itemDiv.appendChild(priceDiv);
+
+            itemDiv.addEventListener('click', () => {
+                const result = this.shop.buyItem(item, this.gameState);
+                if (result.success) {
+                    if (window.audioManager) {
+                        window.audioManager.playPurchase();
+                    }
+                    alert(result.message);
+                    this.closeShop();
+                    SaveManager.save(this.gameState);
+                } else {
+                    alert(result.message);
+                }
+            });
+
+            legendarySection.appendChild(itemDiv);
+            shopItems.appendChild(legendarySection);
+        }
+
+        // 渲染普通道具
         this.shop.currentItems.forEach(item => {
             const itemDiv = document.createElement('div');
             itemDiv.className = `shop-item ${item.type}`;
@@ -564,13 +627,22 @@ class InputHandler {
             const priceDiv = document.createElement('div');
             priceDiv.className = item.price < 0 ? 'shop-item-price negative-price' : 'shop-item-price';
 
+            // 计算实际价格（考虑关卡上涨）
+            let basePrice = item.price;
+
+            // 从第五关开始，正面道具和永久道具价格每关增加10%
+            if (this.gameState.level >= 5 && (item.type === 'positive' || item.type === 'permanent')) {
+                const priceMultiplier = Math.pow(1.1, this.gameState.level - 4);
+                basePrice = Math.ceil(item.price * priceMultiplier);
+            }
+
             // 特质：经济头脑 - 显示折扣价格
-            let displayPrice = item.price;
-            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind' && item.price > 0) {
-                displayPrice = Math.floor(item.price * 0.7);
-                priceDiv.textContent = `${displayPrice}分 (原价${item.price})`;
+            let displayPrice = basePrice;
+            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind' && basePrice > 0) {
+                displayPrice = Math.floor(basePrice * 0.7);
+                priceDiv.textContent = `${displayPrice}分 (原价${basePrice})`;
             } else {
-                priceDiv.textContent = item.price < 0 ? `获得${-item.price}分` : `${item.price}分`;
+                priceDiv.textContent = basePrice < 0 ? `获得${-basePrice}分` : `${basePrice}分`;
             }
 
             itemDiv.appendChild(nameDiv);
@@ -678,6 +750,9 @@ class InputHandler {
     // 处理胜利
     handleWin() {
         console.log('[handleWin] 开始执行通关逻辑');
+        console.log('[handleWin] gameOver 状态:', this.gameState.gameOver);
+        console.log('[handleWin] 当前关卡:', this.gameState.level);
+        console.log('[handleWin] 评价:', this.gameState.rating);
         this.gameState.gameOver = true;
 
         // 播放胜利音效
@@ -694,6 +769,34 @@ class InputHandler {
         resultTitle.textContent = '通关成功!';
         resultTitle.style.color = '#2ecc71';
 
+        // 立即应用评价倍率并显示金币奖励信息
+        let ratingBonusText = '';
+        if (this.gameState.rating) {
+            const beforeScore = this.gameState.score;
+            this.gameState.applyRatingBonus();
+            const afterScore = this.gameState.score;
+
+            // 豪赌模式的特殊消息
+            if (this.gameState.gambleLevelActive) {
+                if (this.gameState.rating === 'S') {
+                    ratingBonusText = `\n\n🎰 豪赌成功！S评价达成！\n金币翻倍: ${beforeScore} → ${afterScore}分`;
+                } else if (this.gameState.rating === 'A') {
+                    ratingBonusText = `\n\n💔 豪赌失败... A评价\n金币减半: ${beforeScore} → ${afterScore}分`;
+                } else if (this.gameState.rating === 'B') {
+                    ratingBonusText = `\n\n💔 豪赌失败... B评价\n金币减半: ${beforeScore} → ${afterScore}分`;
+                }
+            } else {
+                // 原有的评级消息
+                if (this.gameState.rating === 'S') {
+                    ratingBonusText = `\n\n🏆 S评价奖励 +20%\n金币: ${beforeScore} → ${afterScore}分`;
+                } else if (this.gameState.rating === 'A') {
+                    ratingBonusText = `\n\n⭐ A评价\n金币保持不变: ${afterScore}分`;
+                } else if (this.gameState.rating === 'B') {
+                    ratingBonusText = `\n\n📉 B评价惩罚 -50%\n金币: ${beforeScore} → ${afterScore}分`;
+                }
+            }
+        }
+
         // 获取评价文本
         let ratingText = '';
         if (this.gameState.rating === 'S') {
@@ -707,37 +810,48 @@ class InputHandler {
         // 检查是否完成第10关(游戏通关)
         if (this.gameState.level >= 10) {
             // 通关第10关，奖励500金币
-            // 特质：经济头脑 - 金币奖励减少30%
             let coinReward = 500;
-            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind') {
-                coinReward = Math.floor(500 * 0.7); // 350金币
-            }
 
             if (window.game) {
                 window.game.addCoins(coinReward);
             }
 
-            resultMessage.textContent = `🎉 恭喜完成全部关卡! 🎉\n评价: ${ratingText} (${this.gameState.finishRound}回合)\n最终关卡: 第${this.gameState.level}关\n最终得分: ${this.gameState.score + 50}\n\n🎁 通关奖励: ${coinReward}金币\n\n游戏通关!`;
+            resultMessage.textContent = `🎉 恭喜完成全部关卡! 🎉\n评价: ${ratingText} (${this.gameState.finishRound}回合)\n最终关卡: 第${this.gameState.level}关\n最终得分: ${this.gameState.score + 50}${ratingBonusText}\n\n🎁 通关奖励: ${coinReward}金币\n\n游戏通关!`;
 
             // 隐藏下一关按钮
             document.getElementById('nextLevelBtn').style.display = 'none';
         } else {
             // 应用Boss奖励
             let bossRewardText = '';
+            let hasFreeItemsReward = false;
             if (this.gameState.bossRewardPending) {
                 const rewardMessage = this.gameState.applyBossReward();
                 if (rewardMessage) {
                     bossRewardText = `\n\n🎁 ${rewardMessage}`;
 
-                    // 混乱法师特殊处理：给予免费道具
+                    // 混乱法师特殊处理：立即给予免费道具
                     if (this.gameState.bossRuleData.freeItemsReward) {
-                        // 这里需要在打开商店时处理
+                        hasFreeItemsReward = true;
                         window.game.pendingFreeItems = this.gameState.bossRuleData.freeItemsReward;
                     }
                 }
             }
 
-            resultMessage.textContent = `恭喜通关第${this.gameState.level}关!\n评价: ${ratingText} (${this.gameState.finishRound}回合)\n获得奖励:50分\n当前总分:${this.gameState.score + 50}${bossRewardText}`;
+            // 计算关卡奖励（考虑经济头脑特质）
+            let levelReward = 50;
+            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind') {
+                levelReward = Math.floor(50 * 0.7); // 35分
+            }
+
+            resultMessage.textContent = `恭喜通关第${this.gameState.level}关!\n评价: ${ratingText} (${this.gameState.finishRound}回合)\n获得奖励:${levelReward}分\n当前总分:${this.gameState.score + levelReward}${ratingBonusText}${bossRewardText}`;
+
+            // 如果是混乱法师boss奖励，立即打开商店
+            if (hasFreeItemsReward) {
+                // 延迟打开商店，让玩家先看到通关信息
+                setTimeout(() => {
+                    this.openShop();
+                }, 1000);
+            }
 
             // 显示下一关按钮
             document.getElementById('nextLevelBtn').style.display = 'inline-block';
@@ -792,8 +906,20 @@ class InputHandler {
         document.getElementById('retryBtn').style.display = 'none';
 
         console.log('[handleWin] 准备显示模态框');
+
+        // 将模态框移到 body 的最外层
+        if (resultModal.parentElement !== document.body) {
+            console.log('[handleWin] 将模态框移到 body 最外层');
+            document.body.appendChild(resultModal);
+        }
+
+        // 立即显示模态框
         resultModal.style.display = 'flex';
-        console.log('[handleWin] 模态框已设置为 display: flex');
+        resultModal.style.zIndex = '9999';
+        resultModal.style.position = 'fixed';
+
+        console.log('[handleWin] 模态框已设置为 display: flex, z-index: 9999');
+        console.log('[handleWin] 模态框父元素:', resultModal.parentElement);
     }
 
     // 处理失败

@@ -313,8 +313,24 @@ body {
 }
 
 .shop-item.permanent {
-    border-color: #f39c12;
-    background: #d68910;
+    border-color: #000;
+    background: #2c3e50;
+}
+
+.shop-item.legendary {
+    border: 4px solid #ffd700;
+    background: linear-gradient(135deg, #4a3c00 0%, #2c3e50 100%);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: legendaryGlow 2s ease-in-out infinite;
+}
+
+@keyframes legendaryGlow {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(255, 215, 0, 0.8);
+    }
 }
 
 .shop-item-name {

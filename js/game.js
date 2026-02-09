@@ -11,7 +11,7 @@ class TraitManager {
         'economic_mind': {
             id: 'economic_mind',
             name: '经济头脑',
-            description: '商店所有道具价格降低30%\n负面：每关通过奖励的金币减少30%'
+            description: '商店所有道具价格降低30%\n负面：每关通过奖励的积分减少30%'
         },
         'combo_master': {
             id: 'combo_master',
@@ -283,17 +283,32 @@ class GameState {
         // 关卡积分系统
         this.levelScore = 0;         // 本关获得的总分数
         this.levelScoreRequirement = 0; // 本关需要达到的积分要求
-        this.levelScoreRequirements = {  // 各关卡积分要求
-            1: 100,
-            2: 140,
-            3: 180,
-            4: 220,
-            5: 260,
-            6: 300,
-            7: 340,
-            8: 380,
-            9: 420,
-            10: 450
+        this.levelScoreRequirements = {  // 各关卡积分要求 (1-3关无要求，4-9关: 400 + 关卡序号 × 75，第10关: 1400)
+            1: 0,     // 无积分要求
+            2: 0,     // 无积分要求
+            3: 0,     // 无积分要求
+            4: 700,   // 400 + 4 × 75 = 700
+            5: 775,   // 400 + 5 × 75 = 775
+            6: 850,   // 400 + 6 × 75 = 850
+            7: 925,   // 400 + 7 × 75 = 925
+            8: 1000,  // 400 + 8 × 75 = 1000
+            9: 1075,  // 400 + 9 × 75 = 1075
+            10: 1400  // 第10关固定1400分
+        };
+
+        // 关卡积分系数
+        this.levelScoreMultiplier = 1.0;  // 当前关卡的积分系数
+        this.levelScoreMultipliers = {    // 各关卡积分系数
+            1: 0.5,
+            2: 0.5,
+            3: 0.8,
+            4: 0.8,
+            5: 1.0,
+            6: 1.0,
+            7: 1.0,
+            8: 1.2,
+            9: 1.2,
+            10: 1.5
         };
 
         // 评价系统
@@ -377,6 +392,10 @@ class GameState {
 
         // 新道具相关状态标志
         this.lastActionCost = 0;          // 记录上次出牌消耗的行动点
+
+        // 额外胜利条件追踪
+        this.usedPatternTypes = new Set(); // 本关使用过的牌型类型（用于第9关）
+        this.roundsUsedToWin = 0;          // 完成关卡使用的回合数（用于第10关）
         this.backwaterBattleActive = false;  // 背水一战激活标志
         this.desperateStakeActive = false; // 孤注一掷激活标志
 
@@ -391,6 +410,16 @@ class GameState {
         this.availableTraits = [];  // 可选的特质列表（关卡开始时抽取3个）
         this.traitSelected = false;  // 是否已选择特质
         this.discardUsedThisRoundForTrait = false;  // 本回合是否使用过弃牌（用于以逸待劳特质）
+
+        // 负面规则系统（第6关开始，50%概率触发）
+        this.negativeRule = null;  // 当前负面规则: null/'erosion'/'costIncrease'/'rankTax'/'monotone'
+        this.negativeRuleData = {};  // 负面规则数据
+        this.lockedCards = [];  // 被侵蚀规则锁定的卡牌索引
+        this.patternPlayCount = {};  // 本回合各牌型出牌次数（用于消耗递增）
+        this.lastPlayedPatternName = null;  // 上次出牌的牌型名称（用于单调牌序）
+
+        // 连击衰减系统
+        this.patternComboCount = {};  // 本回合各牌型连续使用次数（用于积分衰减）
     }
 
     // 发牌
@@ -405,6 +434,7 @@ class GameState {
         // 初始化关卡积分系统
         this.levelScore = 0;
         this.levelScoreRequirement = this.levelScoreRequirements[this.level] || 0;
+        this.levelScoreMultiplier = this.levelScoreMultipliers[this.level] || 1.0;
 
         // 特质：以逸待劳 - 弃牌点上限减少1点
         if (this.currentTrait && this.currentTrait.id === 'rest_and_wait') {
@@ -415,31 +445,33 @@ class GameState {
 
         // 计算最大行动点：基础点数 + 关卡加成 + 永久加成
         // 关卡加成规则：
-        // 第1关: 6点 (基础6点)
-        // 第2关: 7点 (基础6点 + 1点)
-        // 第3关: 7点 (基础6点 + 1点)
-        // 第4关: 8点 (基础6点 + 2点)
-        // 第5关: 8点 (基础6点 + 2点)
-        // 第6关: 9点 (基础6点 + 3点)
-        // 第7关: 9点 (基础6点 + 3点)
-        // 第8关: 10点 (基础6点 + 4点)
-        // 第9关: 10点 (基础6点 + 4点)
+        // 第1关: 8点 (基础6点 + 2点)
+        // 第2关: 8点 (基础6点 + 2点)
+        // 第3关: 9点 (基础6点 + 3点)
+        // 第4关: 9点 (基础6点 + 3点)
+        // 第5关: 10点 (基础6点 + 4点)
+        // 第6关: 10点 (基础6点 + 4点)
+        // 第7关: 10点 (基础6点 + 4点)
+        // 第8关: 11点 (基础6点 + 5点)
+        // 第9关: 11点 (基础6点 + 5点)
         // 第10关: 11点 (基础6点 + 5点)
         let levelBonus = 0;
-        if (this.level === 1) {
-            levelBonus = 0;  // 第1关: 6点
-        } else if (this.level === 2 || this.level === 3) {
-            levelBonus = 1;  // 第2-3关: 7点
-        } else if (this.level === 4 || this.level === 5) {
-            levelBonus = 2;  // 第4-5关: 8点
-        } else if (this.level === 6 || this.level === 7) {
-            levelBonus = 3;  // 第6-7关: 9点
-        } else if (this.level === 8 || this.level === 9) {
-            levelBonus = 4;  // 第8-9关: 10点
-        } else if (this.level >= 10) {
-            levelBonus = 5;  // 第10关及以上: 11点
+        if (this.level === 1 || this.level === 2) {
+            levelBonus = 2;  // 第1-2关: 8点
+        } else if (this.level === 3 || this.level === 4) {
+            levelBonus = 3;  // 第3-4关: 9点
+        } else if (this.level === 5 || this.level === 6 || this.level === 7) {
+            levelBonus = 4;  // 第5-7关: 10点
+        } else if (this.level >= 8) {
+            levelBonus = 5;  // 第8-10关: 11点
         }
         this.maxActionPoints = this.baseActionPoints + levelBonus + this.permanentActionBonus;
+
+        // 传奇道具：完美时刻 - 下一关初始行动点减少3点
+        if (this.actionPenaltyNextLevel > 0) {
+            this.maxActionPoints -= this.actionPenaltyNextLevel;
+            this.actionPenaltyNextLevel = 0;
+        }
 
         // 应用透支惩罚(如果存在)
         if (this.actionPenaltyNextRound > 0) {
@@ -551,6 +583,11 @@ class GameState {
             return { success: false, message: '当前回合被锁定，无法出牌!' };
         }
 
+        // 负面规则：单调牌序 - 不能连续出两次相同牌型
+        if (this.negativeRule === 'monotone' && this.lastPlayedPatternName === pattern.name) {
+            return { success: false, message: '单调牌序规则：不能连续出两次相同牌型!' };
+        }
+
         // 特质：精准打击 - 无法打出顺子
         if (this.currentTrait && this.currentTrait.id === 'precision_strike' && patternKey === 'STRAIGHT') {
             return { success: false, message: '精准打击特质：无法打出顺子!' };
@@ -567,9 +604,15 @@ class GameState {
             }
         }
 
-        // 扣除行动点并记录消耗
-        const cost = this.deductActionPoints(patternKey);
-        this.lastActionCost = cost;  // 新增:记录消耗
+        // 传奇道具：完美时刻 - 本回合所有出牌行动点消耗为0
+        let cost = 0;
+        if (this.perfectMomentActive) {
+            cost = 0;  // 完美时刻激活时，行动点消耗为0
+        } else {
+            // 扣除行动点并记录消耗
+            cost = this.deductActionPoints(patternKey);
+        }
+        this.lastActionCost = cost;  // 记录消耗
 
         // 炸弹/火箭奖励：打出后获得行动点
         if (patternKey === 'BOMB') {
@@ -585,11 +628,19 @@ class GameState {
             this.pairPlayedThisRound++;
         }
 
+        // 追踪使用过的牌型类型（用于第9关额外胜利条件）
+        this.usedPatternTypes.add(patternKey);
+
         // 增加出牌次数
         this.playCountThisRound++;
 
         // 计算基础分数
         let baseScore = pattern.score;
+
+        // 传奇道具：单牌之王 - 单牌基础积分变为30分
+        if (this.singleCardKingActive && patternKey === 'SINGLE') {
+            baseScore = 30;
+        }
 
         // 特质：炸弹专家 - 炸弹积分+50%
         if (this.currentTrait && this.currentTrait.id === 'bomb_expert' && patternKey === 'BOMB') {
@@ -624,12 +675,25 @@ class GameState {
             comboMultiplier += 0.2;
         }
 
-        let finalScore = Math.floor(baseScore * comboMultiplier);
+        // 连击衰减机制：同一回合内连续使用相同牌型时，积分依次递减10%
+        let decayMultiplier = 1.0;
+        const currentPatternCount = this.patternComboCount[patternKey] || 0;
+        if (currentPatternCount > 0) {
+            // 第2次使用：90%，第3次：80%，第4次：70%，以此类推
+            decayMultiplier = 1.0 - (currentPatternCount * 0.1);
+            // 最低保持10%的积分
+            decayMultiplier = Math.max(0.1, decayMultiplier);
+        }
+
+        let finalScore = Math.floor(baseScore * comboMultiplier * decayMultiplier);
 
         // Boss奖励：完美主义者 - 积分获取+20%
         if (this.bossRuleData.permanentScoreBonus) {
             finalScore = Math.floor(finalScore * (1 + this.bossRuleData.permanentScoreBonus));
         }
+
+        // 应用关卡积分系数
+        finalScore = Math.floor(finalScore * this.levelScoreMultiplier);
 
         this.score += finalScore;
         this.levelScore += finalScore;  // 累加本关积分
@@ -699,6 +763,24 @@ class GameState {
 
         // 检查是否出完牌
         if (this.handCards.length === 0) {
+            // 先检查是否满足所有胜利条件（包括第7、9、10关的额外要求）
+            const winConditionMet = this.checkWinCondition();
+
+            if (!winConditionMet) {
+                // 不满足胜利条件，显示失败原因
+                let failReason = '';
+
+                if (this.levelScore < this.levelScoreRequirement) {
+                    failReason = '积分未达标';
+                } else if (this.level === 9 && this.usedPatternTypes.size < 4) {
+                    failReason = '第9关要求使用至少4种不同牌型';
+                } else if (this.level === 10 && this.round > 2) {
+                    failReason = '第10关要求在2回合内出完牌';
+                }
+
+                return { success: true, message: '手牌已出完，但' + failReason + '!' };
+            }
+
             // Boss关特殊胜利条件检查
             if (this.isBossLevel && this.bossRule === 'perfectionist') {
                 // 完美主义者：必须达到1.5倍积分要求
@@ -714,6 +796,26 @@ class GameState {
                     } else {
                         this.rating = 'B';  // 第3回合完成：B评价（理论上不应该到达）
                     }
+                    return { success: true, message: '通关成功!', checkWin: true };
+                } else {
+                    // 积分未达标，失败
+                    return { success: true, message: '手牌已出完，但积分未达到Boss要求!' };
+                }
+            } else if (this.isBossLevel && this.bossRule === 'orderGuardian' && this.bossRuleData.requiredScore) {
+                // 秩序守护者：检查特殊积分要求
+                if (this.levelScore >= this.bossRuleData.requiredScore) {
+                    this.gameOver = true;
+                    this.finishRound = this.round;
+                    this.bossRewardPending = true;  // 标记boss奖励待领取
+                    // 计算评价
+                    if (this.round <= 2) {
+                        this.rating = 'S';
+                    } else if (this.round === 3) {
+                        this.rating = 'A';
+                    } else if (this.round === 4) {
+                        this.rating = 'B';
+                    }
+                    return { success: true, message: '通关成功!', checkWin: true };
                 } else {
                     // 积分未达标，失败
                     return { success: true, message: '手牌已出完，但积分未达到Boss要求!' };
@@ -734,10 +836,26 @@ class GameState {
                     } else if (this.round === 4) {
                         this.rating = 'B';
                     }
+                    return { success: true, message: '通关成功!', checkWin: true };
                 }
             }
             // 如果积分未达标，不设置gameOver，继续抽牌
         }
+
+        // 负面规则：更新牌型计数（用于消耗递增）
+        if (this.negativeRule === 'costIncrease') {
+            this.patternPlayCount[patternKey] = (this.patternPlayCount[patternKey] || 0) + 1;
+        }
+
+        // 负面规则：记录上次出牌的牌型名称（用于单调牌序）
+        if (this.negativeRule === 'monotone') {
+            this.lastPlayedPatternName = pattern.name;
+        }
+
+        // 连击衰减：更新本回合该牌型的使用次数
+        this.patternComboCount[patternKey] = (this.patternComboCount[patternKey] || 0) + 1;
+
+        return { success: true };
     }
 
     // 献祭者Boss：执行献祭逻辑
@@ -873,6 +991,7 @@ class GameState {
         this.chainReactionActive = false;  // 重置连锁效应
         this.scoreDoubleActive = false;    // 重置积分翻倍
         this.scoreDoubleUsed = false;
+        this.perfectMomentActive = false;  // 重置完美时刻
 
         // 险中求胜:回合结束时若手牌≤5张,获得2点弃牌点
         if (this.riskyVictoryActive) {
@@ -920,6 +1039,29 @@ class GameState {
         this.currentDiscardCost = this.discardPointCost;  // 重置为基础消耗1点
         this.discardUsedThisRound = 0;  // 重置使用次数
 
+        // 负面规则：侵蚀 - 回合结束时若手牌数>15，随机锁定一张牌
+        if (this.negativeRule === 'erosion' && this.handCards.length > 15) {
+            // 找出未被锁定的牌
+            const unlockedIndices = [];
+            for (let i = 0; i < this.handCards.length; i++) {
+                if (!this.lockedCards.includes(i)) {
+                    unlockedIndices.push(i);
+                }
+            }
+            // 随机锁定一张
+            if (unlockedIndices.length > 0) {
+                const randomIndex = unlockedIndices[Math.floor(Math.random() * unlockedIndices.length)];
+                this.lockedCards.push(randomIndex);
+            }
+        }
+
+        // 负面规则：重置本回合的牌型计数（用于消耗递增和单调牌序）
+        this.patternPlayCount = {};
+        this.lastPlayedPatternName = null;
+
+        // 连击衰减：重置本回合的牌型连击计数
+        this.patternComboCount = {};
+
         // 重置商店使用限制
         this.shopUsedItems.clear();
 
@@ -934,17 +1076,20 @@ class GameState {
         // 新回合开始时抽3张牌(如果牌库还有牌)
         // 限制：最多到最大回合数（允许B评价）
         // Boss关：完美主义者严格限制2回合，不允许第3回合
-        const maxAllowedRound = (this.isBossLevel && this.bossRule === 'perfectionist')
-            ? this.maxRounds
-            : this.maxRounds + 1;
+        // 第10关：严格限制2回合，不允许第3回合
+        let maxAllowedRound;
+        if ((this.isBossLevel && this.bossRule === 'perfectionist') || this.level === 10) {
+            maxAllowedRound = 2;  // 完美主义者Boss或第10关：严格2回合
+        } else {
+            maxAllowedRound = this.maxRounds + 1;  // 其他情况：允许B评价的额外回合
+        }
 
         // 检查是否超过最大回合数
         if (this.round > maxAllowedRound) {
-            // 超过最大回合数且还有手牌，游戏失败
-            if (this.handCards.length > 0) {
-                this.gameOver = true;
-                this.rating = null;  // 失败无评价
-            }
+            // 超过最大回合数，不再抽牌
+            // 注意：不在这里设置 gameOver，让 checkLoseCondition() 来判断
+            // 清空lastDrawnCards，标记没有抽牌
+            this.lastDrawnCards = null;
         } else {
             // 还在允许的回合数内，抽牌
             const drawnCards = this.drawCards(3);
@@ -983,19 +1128,63 @@ class GameState {
 
     // 检查胜利条件
     checkWinCondition() {
-        // 必须同时满足两个条件：
-        // 1. 手牌出完
-        // 2. 关卡积分达标
-        return this.handCards.length === 0 && this.levelScore >= this.levelScoreRequirement;
+        // 如果游戏已经结束，不再检查胜利条件
+        if (this.gameOver) {
+            return false;
+        }
+
+        // 基础条件：手牌出完且关卡积分达标
+        const basicCondition = this.handCards.length === 0 && this.levelScore >= this.levelScoreRequirement;
+
+        if (!basicCondition) {
+            return false;
+        }
+
+        // 第7关额外条件：总积分达到基础要求×1.3
+        if (this.level === 7) {
+            const requiredScore = Math.floor(this.levelScoreRequirement * 1.3);
+            if (this.levelScore < requiredScore) {
+                return false;
+            }
+        }
+
+        // 第9关额外条件：使用至少4种不同牌型
+        if (this.level === 9) {
+            if (this.usedPatternTypes.size < 4) {
+                return false;
+            }
+        }
+
+        // 第10关额外条件：在2回合内出完牌（如果boss为完美主义者，依然限制2回合）
+        if (this.level === 10) {
+            // 如果是完美主义者boss，已经有2回合限制，不需要额外检查
+            // 如果不是完美主义者，需要检查是否在2回合内完成
+            if (!this.isBossLevel || this.bossRule !== 'perfectionist') {
+                if (this.round > 2) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     // 检查失败条件
     checkLoseCondition() {
+        // 如果游戏已经结束（通关或失败），不再检查失败条件
+        if (this.gameOver) {
+            return false;
+        }
+
         // 计算最大允许回合数
         // Boss关：完美主义者严格限制2回合，不允许B评价的第3回合
-        const maxAllowedRound = (this.isBossLevel && this.bossRule === 'perfectionist')
-            ? this.maxRounds
-            : this.maxRounds + 1;
+        // 第10关：严格限制2回合，不允许第3回合
+        let maxAllowedRound;
+        if ((this.isBossLevel && this.bossRule === 'perfectionist') || this.level === 10) {
+            maxAllowedRound = 2;  // 完美主义者Boss或第10关：严格2回合
+        } else {
+            maxAllowedRound = this.maxRounds + 1;  // 其他情况：允许B评价的额外回合
+        }
 
         // 失败条件：
         // 1. 超过最大允许回合且手牌仍有剩余
@@ -1139,6 +1328,12 @@ class GameState {
             cost *= 2;
         }
 
+        // 负面规则：消耗递增 - 同一回合内每多出一手该牌型，消耗+1
+        if (this.negativeRule === 'costIncrease') {
+            const playCount = this.patternPlayCount[patternName] || 0;
+            cost += playCount;
+        }
+
         return cost;
     }
 
@@ -1200,6 +1395,35 @@ class GameState {
 
         // 标记本回合已使用弃牌（用于以逸待劳特质）
         this.discardUsedThisRoundForTrait = true;
+
+        // 负面规则：点数税 - 弃牌时需额外弃掉一张相同点数的牌，否则扣20分
+        if (this.negativeRule === 'rankTax') {
+            const discardedRanks = selectedCards.map(card => card.rank);
+            const uniqueRanks = [...new Set(discardedRanks)];
+
+            // 检查手牌中是否有与弃牌相同点数的牌（排除已选中的牌）
+            let taxPaid = false;
+            for (const rank of uniqueRanks) {
+                const matchingCard = this.handCards.find(card =>
+                    card.rank === rank && !selectedCards.includes(card)
+                );
+                if (matchingCard) {
+                    // 找到匹配的牌，额外弃掉
+                    const index = this.handCards.indexOf(matchingCard);
+                    if (index !== -1) {
+                        this.handCards.splice(index, 1);
+                        taxPaid = true;
+                        break; // 只需要弃掉一张
+                    }
+                }
+            }
+
+            // 如果没有找到匹配的牌，扣除20积分
+            if (!taxPaid) {
+                this.score = Math.max(0, this.score - 20);
+                this.levelScore = Math.max(0, this.levelScore - 20);
+            }
+        }
 
         // 移除选中的牌
         selectedCards.forEach(card => {

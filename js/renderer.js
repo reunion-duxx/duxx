@@ -123,6 +123,7 @@ class UIRenderer {
         this.ctx.fillText(`关卡: ${gameState.level}`, padding + 5 * this.scale, y);
 
         // 回合
+        this.ctx.fillStyle = '#fff';
         this.ctx.fillText(`回合: ${gameState.round}/${maxDisplayRounds}`, 120 * this.scale, y);
 
         // 绘制资源信息框 - 中间（行动点和弃牌点）
@@ -197,6 +198,18 @@ class UIRenderer {
             const patternName = patternNames[gameState.specialRuleData.pattern] || '未知';
             const costText = `消耗加倍: ${patternName}x2`;
             this.ctx.fillText(costText, 400 * this.scale, y2);
+        }
+        // 负面规则提示
+        else if (gameState.negativeRule) {
+            this.ctx.fillStyle = '#c0392b';
+            const negativeRuleNames = {
+                'erosion': '侵蚀: 手牌>15时锁定卡牌',
+                'costIncrease': '消耗递增: 牌型消耗递增',
+                'rankTax': '点数税: 弃牌需额外代价',
+                'monotone': '单调牌序: 不能连续出相同牌型'
+            };
+            const ruleText = negativeRuleNames[gameState.negativeRule] || '负面规则';
+            this.ctx.fillText(ruleText, 400 * this.scale, y2);
         }
 
         // 豪赌状态提示
@@ -307,6 +320,19 @@ class UIRenderer {
             const costText = `⚠${patternName}x2`;
             this.ctx.fillText(costText, padding, currentY);
         }
+        // 负面规则提示（简化版）
+        else if (gameState.negativeRule) {
+            this.ctx.fillStyle = '#c0392b';
+            this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+            const negativeRuleNames = {
+                'erosion': '⚠侵蚀',
+                'costIncrease': '⚠递增',
+                'rankTax': '⚠点数税',
+                'monotone': '⚠单调'
+            };
+            const ruleText = negativeRuleNames[gameState.negativeRule] || '负面';
+            this.ctx.fillText(ruleText, padding, currentY);
+        }
     }
 
     // 绘制手牌区
@@ -330,6 +356,7 @@ class UIRenderer {
             topRowCards.forEach((card, i) => {
                 const isSelected = selectedIndices.includes(i);
                 const isHovered = hoveredIndex === i;
+                const isLocked = gameState && gameState.lockedCards && gameState.lockedCards.includes(i);
                 let y = topY;
 
                 // 选中状态：向上移动15像素
@@ -342,7 +369,7 @@ class UIRenderer {
                 }
 
                 const x = startX + i * topGap;
-                this.drawCard(card, x, y, isSelected, isHovered, gameState);
+                this.drawCard(card, x, y, isSelected, isHovered, gameState, isLocked);
             });
 
             // 绘制下行
@@ -351,6 +378,7 @@ class UIRenderer {
                 const index = midPoint + i;
                 const isSelected = selectedIndices.includes(index);
                 const isHovered = hoveredIndex === index;
+                const isLocked = gameState && gameState.lockedCards && gameState.lockedCards.includes(index);
                 let y = bottomY;
 
                 // 选中状态：向上移动15像素
@@ -363,7 +391,7 @@ class UIRenderer {
                 }
 
                 const x = startX + i * bottomGap;
-                this.drawCard(card, x, y, isSelected, isHovered, gameState);
+                this.drawCard(card, x, y, isSelected, isHovered, gameState, isLocked);
             });
         } else {
             // 单行显示逻辑（保持原有逻辑）
@@ -373,6 +401,7 @@ class UIRenderer {
             cards.forEach((card, index) => {
                 const isSelected = selectedIndices.includes(index);
                 const isHovered = hoveredIndex === index;
+                const isLocked = gameState && gameState.lockedCards && gameState.lockedCards.includes(index);
                 let y = startY;
 
                 // 选中状态：向上移动15像素
@@ -385,7 +414,7 @@ class UIRenderer {
                 }
 
                 const x = startX + index * gap;
-                this.drawCard(card, x, y, isSelected, isHovered, gameState);
+                this.drawCard(card, x, y, isSelected, isHovered, gameState, isLocked);
             });
         }
 
@@ -398,7 +427,7 @@ class UIRenderer {
     }
 
     // 绘制单张扑克牌 (像素风格)
-    drawCard(card, x, y, selected, hovered = false, gameState = null) {
+    drawCard(card, x, y, selected, hovered = false, gameState = null, isLocked = false) {
         const w = this.cardWidth;
         const h = this.cardHeight;
 
@@ -423,8 +452,11 @@ class UIRenderer {
             isDisabled = true;
         }
 
-        // 卡牌背景（升级牌使用金色背景）
-        if (isDisabled) {
+        // 卡牌背景（升级牌使用金色背景，锁定牌使用红色背景）
+        if (isLocked) {
+            // 锁定状态：红色背景
+            this.ctx.fillStyle = selected ? '#e74c3c' : '#fadbd8';
+        } else if (isDisabled) {
             // 不可选状态：降低透明度
             this.ctx.globalAlpha = 0.5;
             this.ctx.fillStyle = '#999';
@@ -435,8 +467,14 @@ class UIRenderer {
         }
         this.ctx.fillRect(x, y, w, h);
 
+        // 锁定状态：红色边框
+        if (isLocked) {
+            this.ctx.strokeStyle = '#c0392b';
+            this.ctx.lineWidth = Math.max(2, 3 * this.scale);
+            this.ctx.strokeRect(x, y, w, h);
+        }
         // 悬停状态：发光边框
-        if (hovered && !isDisabled) {
+        else if (hovered && !isDisabled) {
             this.ctx.shadowColor = '#f39c12';
             this.ctx.shadowBlur = 10 * this.scale;
             this.ctx.strokeStyle = '#f39c12';
@@ -646,22 +684,41 @@ class UIRenderer {
         // 更新关卡积分
         const levelScoreDiv = document.getElementById('levelScoreInfo');
         if (levelScoreDiv) {
-            // Boss关：完美主义者使用特殊积分要求
+            // Boss关：完美主义者和秩序守护者使用特殊积分要求
             let targetScore = gameState.levelScoreRequirement;
-            if (gameState.isBossLevel && gameState.bossRule === 'perfectionist' && gameState.bossRuleData.requiredScore) {
+            if (gameState.isBossLevel && gameState.bossRuleData.requiredScore) {
                 targetScore = gameState.bossRuleData.requiredScore;
             }
 
-            const progressPercent = Math.min(100, Math.floor((gameState.levelScore / targetScore) * 100));
-            const color = gameState.levelScore >= targetScore ? '#2ecc71' : '#e74c3c';
-            let levelScoreInfo = `
-                <div style="color: ${color}; margin-bottom: 5px;">
-                    当前: ${gameState.levelScore} / ${targetScore}
-                </div>
-                <div style="color: #ecf0f1;">
-                    进度: ${progressPercent}%
-                </div>
-            `;
+            // 如果积分要求为0（1-3关），显示"无要求"
+            let levelScoreInfo;
+            if (targetScore === 0) {
+                levelScoreInfo = `
+                    <div style="color: #2ecc71; margin-bottom: 5px;">
+                        当前积分: ${gameState.levelScore}
+                    </div>
+                    <div style="color: #ecf0f1;">
+                        本关无积分要求
+                    </div>
+                    <div style="color: ${gameState.levelScoreMultiplier >= 1.0 ? '#2ecc71' : '#f39c12'}; margin-top: 10px;">
+                        关卡系数: ${gameState.levelScoreMultiplier}x
+                    </div>
+                `;
+            } else {
+                const progressPercent = Math.min(100, Math.floor((gameState.levelScore / targetScore) * 100));
+                const color = gameState.levelScore >= targetScore ? '#2ecc71' : '#e74c3c';
+                levelScoreInfo = `
+                    <div style="color: ${color}; margin-bottom: 5px;">
+                        当前: ${gameState.levelScore} / ${targetScore}
+                    </div>
+                    <div style="color: #ecf0f1;">
+                        进度: ${progressPercent}%
+                    </div>
+                    <div style="color: ${gameState.levelScoreMultiplier >= 1.0 ? '#2ecc71' : '#f39c12'}; margin-top: 10px;">
+                        关卡系数: ${gameState.levelScoreMultiplier}x
+                    </div>
+                `;
+            }
 
             // Boss关：完美主义者特殊提示
             if (gameState.isBossLevel && gameState.bossRule === 'perfectionist') {
@@ -672,6 +729,47 @@ class UIRenderer {
                         限2回合
                     </div>
                 `;
+            }
+
+            // 第7关额外胜利条件
+            if (gameState.level === 7) {
+                const requiredScore = Math.floor(gameState.levelScoreRequirement * 1.3);
+                const extraColor = gameState.levelScore >= requiredScore ? '#2ecc71' : '#f39c12';
+                levelScoreInfo += `
+                    <div style="color: ${extraColor}; margin-top: 10px; font-size: 10px;">
+                        ⭐ 额外要求:<br/>
+                        积分×1.3<br/>
+                        (${requiredScore}分)
+                    </div>
+                `;
+            }
+
+            // 第9关额外胜利条件
+            if (gameState.level === 9) {
+                const patternCount = gameState.usedPatternTypes.size;
+                const extraColor = patternCount >= 4 ? '#2ecc71' : '#f39c12';
+                levelScoreInfo += `
+                    <div style="color: ${extraColor}; margin-top: 10px; font-size: 10px;">
+                        ⭐ 额外要求:<br/>
+                        使用≥4种牌型<br/>
+                        (已用${patternCount}种)
+                    </div>
+                `;
+            }
+
+            // 第10关额外胜利条件
+            if (gameState.level === 10) {
+                // 如果不是完美主义者boss，显示2回合限制
+                if (!gameState.isBossLevel || gameState.bossRule !== 'perfectionist') {
+                    const extraColor = gameState.round <= 2 ? '#2ecc71' : '#e74c3c';
+                    levelScoreInfo += `
+                        <div style="color: ${extraColor}; margin-top: 10px; font-size: 10px;">
+                            ⭐ 额外要求:<br/>
+                            2回合内完成<br/>
+                            (当前第${gameState.round}回合)
+                        </div>
+                    `;
+                }
             }
 
             // 豪赌模式提示

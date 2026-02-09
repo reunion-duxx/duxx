@@ -27,6 +27,10 @@ class LevelManager {
         gameState.gambleMode = false;
         gameState.gambleLevelActive = false;
 
+        // 重置额外胜利条件追踪
+        gameState.usedPatternTypes = new Set();
+        gameState.roundsUsedToWin = 0;
+
         // 重置特质选择状态
         gameState.currentTrait = null;
         gameState.traitSelected = false;
@@ -37,8 +41,8 @@ class LevelManager {
         // 临时道具保留，不清空（玩家可以跨关卡使用）
 
         // ===== Boss关系统 =====
-        // 第5关和第10关为boss关
-        if (gameState.level === 5 || gameState.level === 10) {
+        // 第4关和第10关为boss关
+        if (gameState.level === 4 || gameState.level === 10) {
             gameState.isBossLevel = true;
             gameState.bossRewardPending = false;
 
@@ -92,6 +96,13 @@ class LevelManager {
                 ];
                 gameState.bossRuleData.currentGroupIndex = 0;  // 当前在第1组（单牌）
                 gameState.bossRuleData.currentGroupCompleted = false;  // 当前组是否已完成
+
+                // 秩序守护者特殊积分要求
+                if (gameState.level === 4) {
+                    gameState.bossRuleData.requiredScore = 400;  // 第4关要求400分
+                } else if (gameState.level === 10) {
+                    gameState.bossRuleData.requiredScore = 1000;  // 第10关要求1000分
+                }
             } else if (gameState.bossRule === 'chaosMage') {
                 // 混乱法师：随机交换两种牌型的消耗
                 const patterns = ['SINGLE', 'PAIR', 'TRIPLE', 'STRAIGHT', 'BOMB'];
@@ -142,8 +153,9 @@ class LevelManager {
             gameState.bossRewardPending = false;
 
             // ===== 普通特殊规则系统 =====
-            // 第4关后,30%概率触发特殊规则
-            if (gameState.level >= 4 && Math.random() < 0.3) {
+            // 第5关后,30%概率触发特殊规则
+            let hasSpecialRule = false;
+            if (gameState.level >= 5 && Math.random() < 0.3) {
                 const rules = ['timeLimit', 'doubleCost'];
                 const selectedRule = rules[Math.floor(Math.random() * rules.length)];
 
@@ -151,6 +163,7 @@ class LevelManager {
                     gameState.specialRule = 'timeLimit';
                     gameState.turnTimeLimit = 30; // 30秒限制
                     gameState.turnStartTime = null; // 重置计时器
+                    hasSpecialRule = true;
                 } else if (selectedRule === 'doubleCost') {
                     gameState.specialRule = 'doubleCost';
                     // 随机选择一种牌型
@@ -158,16 +171,40 @@ class LevelManager {
                     gameState.specialRuleData = {
                         pattern: patterns[Math.floor(Math.random() * patterns.length)]
                     };
+                    hasSpecialRule = true;
                 }
             } else {
                 gameState.specialRule = null;
                 gameState.specialRuleData = null;
                 gameState.turnStartTime = null;
             }
+
+            // ===== 负面规则系统 =====
+            // 第6关后,50%概率触发负面规则（持续整关）
+            // 重要：负面规则不能与特殊规则重叠
+            if (gameState.level >= 6 && !hasSpecialRule && Math.random() < 0.5) {
+                const negativeRules = ['erosion', 'costIncrease', 'rankTax', 'monotone'];
+                gameState.negativeRule = negativeRules[Math.floor(Math.random() * negativeRules.length)];
+                gameState.negativeRuleData = {};
+                gameState.lockedCards = [];
+                gameState.patternPlayCount = {};
+                gameState.lastPlayedPatternName = null;
+            } else {
+                gameState.negativeRule = null;
+                gameState.negativeRuleData = {};
+                gameState.lockedCards = [];
+                gameState.patternPlayCount = {};
+                gameState.lastPlayedPatternName = null;
+            }
         }
 
         // 关卡奖励 +50分
-        gameState.score += 50;
+        // 特质：经济头脑 - 积分奖励减少30%
+        let levelReward = 50;
+        if (gameState.currentTrait && gameState.currentTrait.id === 'economic_mind') {
+            levelReward = Math.floor(50 * 0.7); // 35分
+        }
+        gameState.score += levelReward;
 
         // 应用透支未来的分数惩罚
         if (gameState.scorePenaltyNextLevel > 0) {
@@ -198,6 +235,10 @@ class LevelManager {
         // 重置行动点惩罚（重要：防止上次失败的惩罚影响重试）
         gameState.actionPenaltyNextRound = 0;
 
+        // 重置额外胜利条件追踪
+        gameState.usedPatternTypes = new Set();
+        gameState.roundsUsedToWin = 0;
+
         // 重置特质选择状态
         gameState.currentTrait = null;
         gameState.traitSelected = false;
@@ -224,6 +265,13 @@ class LevelManager {
                 ];
                 gameState.bossRuleData.currentGroupIndex = 0;
                 gameState.bossRuleData.currentGroupCompleted = false;
+
+                // 秩序守护者特殊积分要求
+                if (gameState.level === 4) {
+                    gameState.bossRuleData.requiredScore = 400;  // 第4关要求400分
+                } else if (gameState.level === 10) {
+                    gameState.bossRuleData.requiredScore = 1000;  // 第10关要求1000分
+                }
             } else if (gameState.bossRule === 'chaosMage') {
                 // 重新随机交换牌型
                 const patterns = ['SINGLE', 'PAIR', 'TRIPLE', 'STRAIGHT', 'BOMB'];
@@ -246,6 +294,14 @@ class LevelManager {
         // 重置特殊规则(重试时保持当前关卡的特殊规则,但重置计时器)
         if (gameState.specialRule === 'timeLimit') {
             gameState.turnStartTime = null;
+        }
+
+        // 重置负面规则状态（保持规则类型，但重置数据）
+        if (gameState.negativeRule) {
+            gameState.negativeRuleData = {};
+            gameState.lockedCards = [];
+            gameState.patternPlayCount = {};
+            gameState.lastPlayedPatternName = null;
         }
 
         // 临时道具保留，不清空（避免玩家损失已购买的道具）
@@ -283,6 +339,7 @@ class SaveManager {
             discardScorePerCard: gameState.discardScorePerCard || 0,
             actionPenaltyNextRound: gameState.actionPenaltyNextRound || 0,
             scorePenaltyNextLevel: gameState.scorePenaltyNextLevel || 0,
+            maxDiscardPoints: gameState.maxDiscardPoints || 4,  // 保存弃牌点上限（献祭者boss奖励）
             // 新增：保存特殊规则状态
             specialRule: gameState.specialRule,
             specialRuleData: gameState.specialRuleData,
@@ -427,6 +484,9 @@ class SaveManager {
 
         gameState.actionPenaltyNextRound = saveData.actionPenaltyNextRound || 0;
         gameState.scorePenaltyNextLevel = saveData.scorePenaltyNextLevel || 0;
+
+        // 恢复弃牌点上限（献祭者boss奖励）
+        gameState.maxDiscardPoints = saveData.maxDiscardPoints || 4;
 
         // 恢复特殊规则状态
         gameState.specialRule = saveData.specialRule || null;
