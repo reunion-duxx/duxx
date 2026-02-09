@@ -77,9 +77,14 @@ class LevelManager {
 
             // 根据不同boss规则初始化特定数据
             if (gameState.bossRule === 'perfectionist') {
-                // 完美主义者：2回合内完成，积分要求×1.5
-                gameState.bossRuleData.requiredScore = Math.floor(gameState.levelScoreRequirements[gameState.level] * 1.5);
-                gameState.maxRounds = 2; // 限制为2回合
+                // 完美主义者：第4关3回合内完成，积分要求×1.1；第10关2回合内完成，积分要求×1.5
+                if (gameState.level === 4) {
+                    gameState.bossRuleData.requiredScore = Math.floor(gameState.levelScoreRequirements[gameState.level] * 1.1);
+                    gameState.maxRounds = 3; // 第4关限制为3回合
+                } else if (gameState.level === 10) {
+                    gameState.bossRuleData.requiredScore = Math.floor(gameState.levelScoreRequirements[gameState.level] * 1.5);
+                    gameState.maxRounds = 2; // 第10关限制为2回合
+                }
             } else if (gameState.bossRule === 'orderGuardian') {
                 // 秩序守护者：按顺序分组解锁牌型
                 // 解锁顺序：单牌 -> 对子 -> [三张,三带一,三带二] -> 顺子 -> 连对 -> [飞机,飞机带单翅膀,飞机带对翅膀] -> 炸弹 -> 四带二
@@ -99,7 +104,7 @@ class LevelManager {
 
                 // 秩序守护者特殊积分要求
                 if (gameState.level === 4) {
-                    gameState.bossRuleData.requiredScore = 400;  // 第4关要求400分
+                    gameState.bossRuleData.requiredScore = 280;  // 第4关要求280分
                 } else if (gameState.level === 10) {
                     gameState.bossRuleData.requiredScore = 1000;  // 第10关要求1000分
                 }
@@ -249,7 +254,12 @@ class LevelManager {
         // Boss关重试：重置boss规则数据但保持规则类型
         if (gameState.isBossLevel && gameState.bossRule) {
             if (gameState.bossRule === 'perfectionist') {
-                gameState.maxRounds = 2; // 重新设置为2回合
+                // 完美主义者：第4关3回合，第10关2回合
+                if (gameState.level === 4) {
+                    gameState.maxRounds = 3;
+                } else if (gameState.level === 10) {
+                    gameState.maxRounds = 2;
+                }
             } else if (gameState.bossRule === 'orderGuardian') {
                 // 重置解锁状态
                 gameState.bossRuleData.unlockedPatterns = ['SINGLE'];
@@ -268,7 +278,7 @@ class LevelManager {
 
                 // 秩序守护者特殊积分要求
                 if (gameState.level === 4) {
-                    gameState.bossRuleData.requiredScore = 400;  // 第4关要求400分
+                    gameState.bossRuleData.requiredScore = 280;  // 第4关要求280分
                 } else if (gameState.level === 10) {
                     gameState.bossRuleData.requiredScore = 1000;  // 第10关要求1000分
                 }

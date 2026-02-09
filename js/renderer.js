@@ -172,15 +172,26 @@ class UIRenderer {
             this.ctx.fillStyle = '#9b59b6';
             this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
 
-            const bossRuleNames = {
-                'perfectionist': '💎 Boss: 完美主义者 - 2回合内完成，积分需达1.5倍',
-                'orderGuardian': '🛡️ Boss: 秩序守护者 - 按顺序解锁牌型',
-                'chaosMage': '🎭 Boss: 混乱法师 - 每回合随机交换牌型消耗',
-                'pressureTester': '⚡ Boss: 压力测试者 - 无法弃牌，手牌>15张会惩罚',
-                'sacrificer': '🔥 Boss: 献祭者 - 出牌后必须献祭相同点数的牌'
-            };
+            let bossText = '';
+            if (gameState.bossRule === 'perfectionist') {
+                // 完美主义者根据关卡显示不同文本
+                if (gameState.level === 4) {
+                    bossText = '💎 Boss: 完美主义者 - 3回合内完成，积分需达1.1倍';
+                } else if (gameState.level === 10) {
+                    bossText = '💎 Boss: 完美主义者 - 2回合内完成，积分需达1.5倍';
+                } else {
+                    bossText = '💎 Boss: 完美主义者';
+                }
+            } else {
+                const bossRuleNames = {
+                    'orderGuardian': '🛡️ Boss: 秩序守护者 - 按顺序解锁牌型',
+                    'chaosMage': '🎭 Boss: 混乱法师 - 每回合随机交换牌型消耗',
+                    'pressureTester': '⚡ Boss: 压力测试者 - 无法弃牌，手牌>15张会惩罚',
+                    'sacrificer': '🔥 Boss: 献祭者 - 出牌后必须献祭相同点数的牌'
+                };
+                bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
+            }
 
-            const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
             this.ctx.fillText(bossText, 400 * this.scale, y2);
         }
         // 特殊规则提示

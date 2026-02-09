@@ -283,16 +283,16 @@ class GameState {
         // 关卡积分系统
         this.levelScore = 0;         // 本关获得的总分数
         this.levelScoreRequirement = 0; // 本关需要达到的积分要求
-        this.levelScoreRequirements = {  // 各关卡积分要求 (1-3关无要求，4-9关: 400 + 关卡序号 × 75，第10关: 1400)
+        this.levelScoreRequirements = {  // 各关卡积分要求 (1-3关无要求，4-9关: (300 + 关卡序号 × 100) × 关卡系数，第10关: 1400)
             1: 0,     // 无积分要求
             2: 0,     // 无积分要求
             3: 0,     // 无积分要求
-            4: 700,   // 400 + 4 × 75 = 700
-            5: 775,   // 400 + 5 × 75 = 775
-            6: 850,   // 400 + 6 × 75 = 850
-            7: 925,   // 400 + 7 × 75 = 925
-            8: 1000,  // 400 + 8 × 75 = 1000
-            9: 1075,  // 400 + 9 × 75 = 1075
+            4: 450,   // 第4关积分要求
+            5: 800,   // (300 + 5 × 100) × 1.0 = 800
+            6: 900,   // (300 + 6 × 100) × 1.0 = 900
+            7: 1000,  // (300 + 7 × 100) × 1.0 = 1000
+            8: 1320,  // (300 + 8 × 100) × 1.2 = 1320
+            9: 1440,  // (300 + 9 × 100) × 1.2 = 1440
             10: 1400  // 第10关固定1400分
         };
 
@@ -1075,11 +1075,10 @@ class GameState {
 
         // 新回合开始时抽3张牌(如果牌库还有牌)
         // 限制：最多到最大回合数（允许B评价）
-        // Boss关：完美主义者严格限制2回合，不允许第3回合
-        // 第10关：严格限制2回合，不允许第3回合
+        // Boss关：完美主义者严格限制回合数，不允许额外回合
         let maxAllowedRound;
-        if ((this.isBossLevel && this.bossRule === 'perfectionist') || this.level === 10) {
-            maxAllowedRound = 2;  // 完美主义者Boss或第10关：严格2回合
+        if (this.isBossLevel && this.bossRule === 'perfectionist') {
+            maxAllowedRound = this.maxRounds;  // 完美主义者Boss：严格按maxRounds限制（第4关3回合，第10关2回合）
         } else {
             maxAllowedRound = this.maxRounds + 1;  // 其他情况：允许B评价的额外回合
         }
@@ -1177,11 +1176,10 @@ class GameState {
         }
 
         // 计算最大允许回合数
-        // Boss关：完美主义者严格限制2回合，不允许B评价的第3回合
-        // 第10关：严格限制2回合，不允许第3回合
+        // Boss关：完美主义者严格限制回合数，不允许B评价的额外回合
         let maxAllowedRound;
-        if ((this.isBossLevel && this.bossRule === 'perfectionist') || this.level === 10) {
-            maxAllowedRound = 2;  // 完美主义者Boss或第10关：严格2回合
+        if (this.isBossLevel && this.bossRule === 'perfectionist') {
+            maxAllowedRound = this.maxRounds;  // 完美主义者Boss：严格按maxRounds限制（第4关3回合，第10关2回合）
         } else {
             maxAllowedRound = this.maxRounds + 1;  // 其他情况：允许B评价的额外回合
         }
