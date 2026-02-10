@@ -742,19 +742,6 @@ class UIRenderer {
                 `;
             }
 
-            // 第7关额外胜利条件
-            if (gameState.level === 7) {
-                const requiredScore = Math.floor(gameState.levelScoreRequirement * 1.3);
-                const extraColor = gameState.levelScore >= requiredScore ? '#2ecc71' : '#f39c12';
-                levelScoreInfo += `
-                    <div style="color: ${extraColor}; margin-top: 10px; font-size: 10px;">
-                        ⭐ 额外要求:<br/>
-                        积分×1.3<br/>
-                        (${requiredScore}分)
-                    </div>
-                `;
-            }
-
             // 第9关额外胜利条件
             if (gameState.level === 9) {
                 const patternCount = gameState.usedPatternTypes.size;
@@ -872,22 +859,10 @@ class UIRenderer {
 
             // 存钱罐系列
             const piggyItems = gameState.permanentItems.filter(i =>
-                ['piggy_gold', 'piggy_diamond', 'piggy_king'].includes(i.id)
+                i.id === 'piggy_gold'
             );
             if (piggyItems.length > 0) {
-                const bonuses = piggyItems.map(i => {
-                    if (i.id === 'piggy_gold') return 20;
-                    if (i.id === 'piggy_diamond') return 50;
-                    if (i.id === 'piggy_king') return 100;
-                    return 0;
-                });
-                const total = bonuses.reduce((a, b) => a + b, 0);
-                effectsHtml += `<div style="color: #f1c40f;">✓ 存钱罐: 每局+${total}分</div>`;
-            }
-
-            // 幸运四叶草
-            if (gameState.permanentItems.find(i => i.id === 'lucky_clover')) {
-                effectsHtml += `<div style="color: #2ecc71;">✓ 幸运四叶草: 20%王牌</div>`;
+                effectsHtml += `<div style="color: #f1c40f;">✓ 黄金存钱罐: 每局+20分</div>`;
             }
 
             // Boss奖励效果

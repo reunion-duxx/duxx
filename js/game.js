@@ -11,7 +11,7 @@ class TraitManager {
         'economic_mind': {
             id: 'economic_mind',
             name: '经济头脑',
-            description: '商店所有道具价格降低30%\n负面：每关通过奖励的积分减少30%'
+            description: '商店正面道具、永久道具和传奇道具价格降低20%（不影响负面道具）\n负面：每关通过奖励的积分减少30%'
         },
         'combo_master': {
             id: 'combo_master',
@@ -31,7 +31,7 @@ class TraitManager {
         'straight_master': {
             id: 'straight_master',
             name: '顺子大师',
-            description: '5张及以上顺子的消耗减少1点\n负面：对子的消耗增加1点'
+            description: '顺子的消耗减少1点\n负面：对子的消耗增加1点'
         },
         'aggressive_assault': {
             id: 'aggressive_assault',
@@ -165,13 +165,13 @@ class PatternDetector {
             return { valid: true, ...this.PATTERNS.TRIPLE_PAIR, cards: sorted };
         }
 
-        // 顺子 (5张及以上连续单牌,不能含2和王)
-        if (count >= 5 && this.isStraight(sorted)) {
+        // 顺子 (恰好5张连续单牌,不能含2和王)
+        if (count === 5 && this.isStraight(sorted)) {
             return { valid: true, ...this.PATTERNS.STRAIGHT, cards: sorted };
         }
 
-        // 连对 (3对及以上连续对子)
-        if (count >= 6 && count % 2 === 0 && this.isDoubleStraight(sorted)) {
+        // 连对 (恰好3对连续对子)
+        if (count === 6 && this.isDoubleStraight(sorted)) {
             return { valid: true, ...this.PATTERNS.DOUBLE_STRAIGHT, cards: sorted };
         }
 
@@ -287,11 +287,11 @@ class GameState {
             1: 0,     // 无积分要求
             2: 0,     // 无积分要求
             3: 0,     // 无积分要求
-            4: 450,   // 第4关积分要求
-            5: 800,   // (300 + 5 × 100) × 1.0 = 800
-            6: 900,   // (300 + 6 × 100) × 1.0 = 900
-            7: 1000,  // (300 + 7 × 100) × 1.0 = 1000
-            8: 1320,  // (300 + 8 × 100) × 1.2 = 1320
+            4: 350,   // 第4关积分要求
+            5: 400,   // 第5关积分要求
+            6: 450,   // 第6关积分要求
+            7: 700,   // 第7关积分要求
+            8: 1100,  // 第8关积分要求
             9: 1440,  // (300 + 9 × 100) × 1.2 = 1440
             10: 1400  // 第10关固定1400分
         };
@@ -299,8 +299,8 @@ class GameState {
         // 关卡积分系数
         this.levelScoreMultiplier = 1.0;  // 当前关卡的积分系数
         this.levelScoreMultipliers = {    // 各关卡积分系数
-            1: 0.5,
-            2: 0.5,
+            1: 0.6,
+            2: 0.6,
             3: 0.8,
             4: 0.8,
             5: 1.0,
@@ -465,7 +465,10 @@ class GameState {
         } else if (this.level >= 8) {
             levelBonus = 5;  // 第8-10关: 11点
         }
-        this.maxActionPoints = this.baseActionPoints + levelBonus + this.permanentActionBonus;
+
+        // 计算最大行动点：基础 + 关卡加成 + 永久道具加成 + boss奖励加成
+        const bossActionBonus = this.bossRuleData?.permanentActionBonus || 0;
+        this.maxActionPoints = this.baseActionPoints + levelBonus + this.permanentActionBonus + bossActionBonus;
 
         // 传奇道具：完美时刻 - 下一关初始行动点减少3点
         if (this.actionPenaltyNextLevel > 0) {
@@ -1005,22 +1008,11 @@ class GameState {
         // 弃牌点系统：每回合获得2点，上限4点（改为2点和4点上限）
         this.discardPoints = Math.min(this.discardPoints + 2, this.maxDiscardPoints);
 
-        // Boss奖励：压力测试者 - 永久每回合行动点+1
-        if (this.bossRuleData.permanentActionBonus) {
-            this.actionPoints += this.bossRuleData.permanentActionBonus;
-        }
-
         // 永久道具：存钱罐 - 每回合开始时获得分数
         this.permanentItems.forEach(item => {
             if (item.id === 'piggy_gold') {
                 this.score += 20;
                 this.levelScore += 20;
-            } else if (item.id === 'piggy_diamond') {
-                this.score += 50;
-                this.levelScore += 50;
-            } else if (item.id === 'piggy_king') {
-                this.score += 100;
-                this.levelScore += 100;
             }
         });
 
@@ -1101,21 +1093,16 @@ class GameState {
 
     // 应用永久道具加成
     applyPermanentBonuses() {
+        // 保存旧的永久加成值，用于计算差值
+        const oldPermanentActionBonus = this.permanentActionBonus;
+
         // 重置永久加成（防止累加）
         this.permanentActionBonus = 0;
         this.permanentDiscardDrawBonus = 0;
         this.discardScorePerCard = 0;
 
         this.permanentItems.forEach(item => {
-            if (item.id === 'lucky_clover') {
-                // 20%概率获得随机王牌
-                if (Math.random() < 0.2) {
-                    const jokerCard = Math.random() < 0.5 ?
-                        new Card('小王', 'joker') :
-                        new Card('大王', 'joker');
-                    this.handCards.push(jokerCard);
-                }
-            } else if (item.id === 'permanent_action_boost') {
+            if (item.id === 'permanent_action_boost') {
                 this.permanentActionBonus += 1;
             } else if (item.id === 'permanent_discard_draw_extra') {
                 this.permanentDiscardDrawBonus += 1;
@@ -1123,6 +1110,32 @@ class GameState {
                 this.discardScorePerCard = 3;
             }
         });
+
+        // 立即更新最大行动点和当前行动点（如果游戏已开始）
+        if (this.level > 0) {
+            let levelBonus = 0;
+            if (this.level === 1 || this.level === 2) {
+                levelBonus = 2;
+            } else if (this.level === 3 || this.level === 4) {
+                levelBonus = 3;
+            } else if (this.level === 5 || this.level === 6 || this.level === 7) {
+                levelBonus = 4;
+            } else if (this.level >= 8) {
+                levelBonus = 5;
+            }
+
+            // 计算新的最大行动点（包含boss奖励加成）
+            const bossActionBonus = this.bossRuleData?.permanentActionBonus || 0;
+            const newMaxActionPoints = this.baseActionPoints + levelBonus + this.permanentActionBonus + bossActionBonus;
+
+            // 如果最大行动点增加了，同时增加当前行动点
+            const actionPointIncrease = this.permanentActionBonus - oldPermanentActionBonus;
+            if (actionPointIncrease > 0) {
+                this.actionPoints += actionPointIncrease;
+            }
+
+            this.maxActionPoints = newMaxActionPoints;
+        }
     }
 
     // 检查胜利条件
@@ -1137,14 +1150,6 @@ class GameState {
 
         if (!basicCondition) {
             return false;
-        }
-
-        // 第7关额外条件：总积分达到基础要求×1.3
-        if (this.level === 7) {
-            const requiredScore = Math.floor(this.levelScoreRequirement * 1.3);
-            if (this.levelScore < requiredScore) {
-                return false;
-            }
         }
 
         // 第9关额外条件：使用至少4种不同牌型
@@ -1300,7 +1305,7 @@ class GameState {
             cost += 2;
         }
 
-        // 特质：顺子大师 - 5张及以上顺子消耗-1，对子消耗+1
+        // 特质：顺子大师 - 顺子消耗-1，对子消耗+1
         if (this.currentTrait && this.currentTrait.id === 'straight_master') {
             if (patternName === 'STRAIGHT') {
                 cost = Math.max(1, cost - 1);

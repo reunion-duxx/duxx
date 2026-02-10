@@ -165,9 +165,12 @@ class InputHandler {
         }
 
         // 动态检查回合是否用完
-        // 完美主义者Boss或第10关：严格限制2回合
         let maxAllowedRound;
-        if ((this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') || this.gameState.level === 10) {
+        if (this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') {
+            // 完美主义者Boss：第4关3回合，第10关2回合
+            maxAllowedRound = this.gameState.maxRounds;
+        } else if (this.gameState.level === 10) {
+            // 第10关：严格限制2回合
             maxAllowedRound = 2;
         } else {
             maxAllowedRound = this.gameState.maxRounds + 1;
@@ -327,6 +330,58 @@ class InputHandler {
             const sacrificeResult = this.gameState.performSacrifice();
             if (sacrificeResult.success) {
                 alert(`🔥 献祭者Boss规则触发！\n\n${sacrificeResult.message}`);
+
+                // 献祭后检查是否手牌已空
+                if (this.gameState.handCards.length === 0) {
+                    // 检查胜利条件
+                    if (this.gameState.checkWinCondition()) {
+                        console.log('[献祭后] 手牌已空且满足胜利条件，触发胜利');
+
+                        // 设置完成回合数和评价（与 game.js 中的逻辑一致）
+                        this.gameState.finishRound = this.gameState.round;
+                        if (this.gameState.isBossLevel) {
+                            this.gameState.bossRewardPending = true;
+                        }
+
+                        // 计算评价（考虑完美主义者Boss的特殊规则）
+                        if (this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') {
+                            // 完美主义者：限2回合，只有S和A评价
+                            if (this.gameState.round === 1) {
+                                this.gameState.rating = 'S';
+                            } else if (this.gameState.round === 2) {
+                                this.gameState.rating = 'A';
+                            } else {
+                                this.gameState.rating = 'B';
+                            }
+                        } else {
+                            // 普通关卡和其他Boss的标准评价
+                            if (this.gameState.round <= 2) {
+                                this.gameState.rating = 'S';
+                            } else if (this.gameState.round === 3) {
+                                this.gameState.rating = 'A';
+                            } else if (this.gameState.round === 4) {
+                                this.gameState.rating = 'B';
+                            }
+                        }
+
+                        this.handleWin();
+                        return;
+                    } else {
+                        // 手牌出完但不满足胜利条件
+                        console.log('[献祭后] 手牌已空但不满足胜利条件，触发失败');
+                        let failReason = '';
+                        if (this.gameState.levelScore < this.gameState.levelScoreRequirement) {
+                            failReason = `积分未达标！\n本关积分: ${this.gameState.levelScore}/${this.gameState.levelScoreRequirement}\n差距: ${this.gameState.levelScoreRequirement - this.gameState.levelScore}分`;
+                        } else if (this.gameState.level === 9 && this.gameState.usedPatternTypes.size < 4) {
+                            failReason = `第9关要求使用至少4种不同牌型！\n当前使用: ${this.gameState.usedPatternTypes.size}种`;
+                        } else if (this.gameState.level === 10 && this.gameState.round > 2) {
+                            failReason = `第10关要求在2回合内出完牌！\n当前回合: ${this.gameState.round}`;
+                        }
+                        alert(`⚠️ 献祭后手牌已空，但${failReason}`);
+                        this.handleLose();
+                        return;
+                    }
+                }
             }
         }
     }
@@ -347,9 +402,12 @@ class InputHandler {
         }
 
         // 动态检查回合是否用完
-        // 完美主义者Boss或第10关：严格限制2回合
         let maxAllowedRound;
-        if ((this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') || this.gameState.level === 10) {
+        if (this.gameState.isBossLevel && this.gameState.bossRule === 'perfectionist') {
+            // 完美主义者Boss：第4关3回合，第10关2回合
+            maxAllowedRound = this.gameState.maxRounds;
+        } else if (this.gameState.level === 10) {
+            // 第10关：严格限制2回合
             maxAllowedRound = 2;
         } else {
             maxAllowedRound = this.gameState.maxRounds + 1;
@@ -584,9 +642,36 @@ class InputHandler {
             descDiv.className = 'shop-item-desc';
             descDiv.textContent = item.description;
 
+            // 计算传奇道具的实际价格（与items.js中的buyItem逻辑保持一致）
+            let legendaryPrice = item.price;
+            if (this.gameState.level >= 5) {
+                let priceMultiplier = 1;
+
+                if (this.gameState.level >= 5 && this.gameState.level <= 7) {
+                    priceMultiplier = Math.pow(1.15, this.gameState.level - 4);
+                } else if (this.gameState.level >= 8) {
+                    const level7Multiplier = Math.pow(1.15, 3);
+                    const level8PlusMultiplier = Math.pow(1.25, this.gameState.level - 7);
+                    priceMultiplier = level7Multiplier * level8PlusMultiplier;
+                }
+
+                priceMultiplier = Math.min(priceMultiplier, 2.5);
+                legendaryPrice = Math.floor(item.price * priceMultiplier);
+            }
+
+            // 特质：经济头脑 - 显示折扣价格
+            let displayLegendaryPrice = legendaryPrice;
+            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind') {
+                displayLegendaryPrice = Math.floor(legendaryPrice * 0.8);
+            }
+
             const priceDiv = document.createElement('div');
             priceDiv.className = 'shop-item-price';
-            priceDiv.textContent = `${item.price}分`;
+            if (displayLegendaryPrice !== legendaryPrice) {
+                priceDiv.textContent = `${displayLegendaryPrice}分 (原价${legendaryPrice})`;
+            } else {
+                priceDiv.textContent = `${legendaryPrice}分`;
+            }
             priceDiv.style.color = '#ffd700';
 
             itemDiv.appendChild(nameDiv);
@@ -630,16 +715,36 @@ class InputHandler {
             // 计算实际价格（考虑关卡上涨）
             let basePrice = item.price;
 
-            // 从第五关开始，正面道具和永久道具价格每关增加10%
+            // 商店涨价机制（与items.js中的buyItem逻辑保持一致）
+            // 5-7关：每关上涨15%（向下取整）
+            // 8-10关：每关上涨25%（向下取整）
+            // 涨价上限：原价的2.5倍
             if (this.gameState.level >= 5 && (item.type === 'positive' || item.type === 'permanent')) {
-                const priceMultiplier = Math.pow(1.1, this.gameState.level - 4);
-                basePrice = Math.ceil(item.price * priceMultiplier);
+                let priceMultiplier = 1;
+
+                if (this.gameState.level >= 5 && this.gameState.level <= 7) {
+                    // 第5关: ×1.15, 第6关: ×1.15², 第7关: ×1.15³
+                    priceMultiplier = Math.pow(1.15, this.gameState.level - 4);
+                } else if (this.gameState.level >= 8) {
+                    // 第8-10关：先计算5-7关的累积涨幅，再叠加8-10关的涨幅
+                    // 第7关结束时的倍率：1.15³ = 1.520875
+                    const level7Multiplier = Math.pow(1.15, 3);
+                    // 第8关开始额外涨幅：第8关×1.25, 第9关×1.25², 第10关×1.25³
+                    const level8PlusMultiplier = Math.pow(1.25, this.gameState.level - 7);
+                    priceMultiplier = level7Multiplier * level8PlusMultiplier;
+                }
+
+                // 涨价上限：最高为原价的2.5倍
+                priceMultiplier = Math.min(priceMultiplier, 2.5);
+
+                basePrice = Math.floor(item.price * priceMultiplier);
             }
 
-            // 特质：经济头脑 - 显示折扣价格
+            // 特质：经济头脑 - 显示折扣价格（不影响负面道具）
             let displayPrice = basePrice;
-            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind' && basePrice > 0) {
-                displayPrice = Math.floor(basePrice * 0.7);
+            if (this.gameState.currentTrait && this.gameState.currentTrait.id === 'economic_mind' &&
+                basePrice > 0 && item.type !== 'negative' && item.type !== 'instant_negative') {
+                displayPrice = Math.floor(basePrice * 0.8);
                 priceDiv.textContent = `${displayPrice}分 (原价${basePrice})`;
             } else {
                 priceDiv.textContent = basePrice < 0 ? `获得${-basePrice}分` : `${basePrice}分`;
@@ -728,6 +833,11 @@ class InputHandler {
                             // 检查是否需要触发胜利（如火箭助推器打出最后5张牌）
                             if (result.checkWin && this.gameState.checkWinCondition()) {
                                 this.handleWin();
+                            }
+
+                            // 检查是否需要结束回合（如完美时刻）
+                            if (result.endRound) {
+                                this.gameState.endRound();
                             }
                         } else {
                             alert(result.message);
@@ -869,14 +979,25 @@ class InputHandler {
                 // 显示Boss关规则提示
                 if (this.gameState.isBossLevel && this.gameState.bossRule) {
                     setTimeout(() => {
-                        const bossMessages = {
-                            'perfectionist': '💎 Boss关: 完美主义者\n\n规则：必须在2回合内出完所有手牌\n且总积分必须达到1.5倍要求\n\n奖励：本局游戏剩余关卡积分获取+20%',
-                            'orderGuardian': '🛡️ Boss关: 秩序守护者\n\n规则：必须按顺序出牌型\n单牌→对子→[三张/三带一/三带二]→顺子→连对→[飞机/飞机带单翅膀/飞机带对翅膀]→炸弹→四带二\n方括号内的牌型打出任意一种即可解锁下一组\n火箭可随时打出\n\n奖励：永久行动点+2（本局游戏）',
-                            'chaosMage': '🎭 Boss关: 混乱法师\n\n规则：每回合开始时随机交换两种牌型的行动点消耗\n牌型积分不变\n\n奖励：随机获得2个商店道具（免费）',
-                            'pressureTester': '⚡ Boss关: 压力测试者\n\n规则：无法主动弃牌\n回合结束时若手牌超过15张\n超出部分每张使下回合行动点-1\n\n奖励：本局游戏剩余关卡每回合行动点+1',
-                            'sacrificer': '🔥 Boss关: 献祭者\n\n规则：每次打出一手牌后\n必须立即从手牌中弃掉一张与所出牌型中任意一张牌点数相同的牌\n若手牌中没有可匹配点数的牌\n则改为随机弃掉两张手牌\n\n奖励：永久获得弃牌点上限+2'
-                        };
-                        const message = bossMessages[this.gameState.bossRule];
+                        let message = '';
+
+                        // 完美主义者根据关卡显示不同信息
+                        if (this.gameState.bossRule === 'perfectionist') {
+                            if (this.gameState.level === 4) {
+                                message = '💎 Boss关: 完美主义者\n\n规则：必须在3回合内出完所有手牌\n且总积分必须达到1.1倍要求\n\n奖励：本局游戏剩余关卡积分获取+20%';
+                            } else if (this.gameState.level === 10) {
+                                message = '💎 Boss关: 完美主义者\n\n规则：必须在2回合内出完所有手牌\n且总积分必须达到1.5倍要求\n\n奖励：本局游戏剩余关卡积分获取+20%';
+                            }
+                        } else {
+                            const bossMessages = {
+                                'orderGuardian': '🛡️ Boss关: 秩序守护者\n\n规则：必须按顺序出牌型\n单牌→对子→[三张/三带一/三带二]→顺子→连对→[飞机/飞机带单翅膀/飞机带对翅膀]→炸弹→四带二\n方括号内的牌型打出任意一种即可解锁下一组\n火箭可随时打出\n\n奖励：永久行动点+2（本局游戏）',
+                                'chaosMage': '🎭 Boss关: 混乱法师\n\n规则：每回合开始时随机交换两种牌型的行动点消耗\n牌型积分不变\n\n奖励：随机获得2个商店道具（免费）',
+                                'pressureTester': '⚡ Boss关: 压力测试者\n\n规则：无法主动弃牌\n回合结束时若手牌超过15张\n超出部分每张使下回合行动点-1\n\n奖励：本局游戏剩余关卡每回合行动点+1',
+                                'sacrificer': '🔥 Boss关: 献祭者\n\n规则：每次打出一手牌后\n必须立即从手牌中弃掉一张与所出牌型中任意一张牌点数相同的牌\n若手牌中没有可匹配点数的牌\n则改为随机弃掉两张手牌\n\n奖励：永久获得弃牌点上限+2'
+                            };
+                            message = bossMessages[this.gameState.bossRule];
+                        }
+
                         if (message) alert(message);
                     }, 500);
                 }

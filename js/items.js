@@ -24,7 +24,7 @@ class ItemFactory {
         // ===== 正面道具 =====
         'compass': {
             name: '配对指南针',
-            price: 60,
+            price: 150,
             type: 'positive',
             description: '显示当前手牌的最优出牌组合建议',
             effect: (gameState) => {
@@ -45,7 +45,7 @@ class ItemFactory {
 
         'joker_mask': {
             name: '小丑面具',
-            price: 120,
+            price: 320,
             type: 'positive',
             description: '随机获得1张王牌(大王或小王)',
             effect: (gameState) => {
@@ -59,7 +59,7 @@ class ItemFactory {
 
         'deck_reforge': {
             name: '牌堆重铸',
-            price: 130,
+            price: 350,
             type: 'positive',
             description: '重新随机当前所有手牌(慎用!)',
             effect: (gameState) => {
@@ -71,7 +71,7 @@ class ItemFactory {
 
         'bomb_factory': {
             name: '炸弹工坊',
-            price: 170,
+            price: 450,
             type: 'positive',
             description: '将选中的4张牌转化为同点数炸弹',
             effect: (gameState, selectedCards) => {
@@ -103,7 +103,7 @@ class ItemFactory {
 
         'hourglass': {
             name: '回合沙漏',
-            price: 220,
+            price: 900,
             type: 'positive',
             description: '额外增加1个回合(最多使用2次)',
             effect: (gameState) => {
@@ -115,7 +115,7 @@ class ItemFactory {
 
         'rocket_booster': {
             name: '火箭助推器',
-            price: 240,
+            price: 950,
             type: 'positive',
             description: '出掉手中最小的5张牌(无需合法牌型)',
             effect: (gameState) => {
@@ -148,7 +148,7 @@ class ItemFactory {
 
         'hand_remover': {
             name: '手牌清理器',
-            price: 95,
+            price: 280,
             type: 'positive',
             description: '从手牌中移除选中的1张牌（永久移除）',
             effect: (gameState, selectedCards) => {
@@ -175,7 +175,7 @@ class ItemFactory {
 
         'card_upgrader': {
             name: '牌张升级器',
-            price: 140,
+            price: 380,
             type: 'positive',
             description: '将选中的1张手牌升级为更高点数（3→4, 4→5...K→A）',
             effect: (gameState, selectedCards) => {
@@ -205,7 +205,7 @@ class ItemFactory {
 
         'action_charger': {
             name: '行动点充能器',
-            price: 100,
+            price: 180,
             type: 'positive',
             description: '立即获得2点行动点',
             effect: (gameState) => {
@@ -216,7 +216,7 @@ class ItemFactory {
 
         'action_expander': {
             name: '行动点扩容器',
-            price: 160,
+            price: 500,
             type: 'positive',
             description: '本局每回合最大行动点+1',
             effect: (gameState) => {
@@ -228,7 +228,7 @@ class ItemFactory {
 
         'energy_saver': {
             name: '节能模式',
-            price: 120,
+            price: 400,
             type: 'positive',
             description: '本回合所有牌型消耗减半',
             effect: (gameState) => {
@@ -239,7 +239,7 @@ class ItemFactory {
 
         'exchange_card': {
             name: '以旧换新',
-            price: 200,
+            price: 420,
             type: 'positive',
             description: '弃掉一张牌，从牌库中重新挑选一张牌加入到你的手牌中',
             effect: (gameState, selectedCards) => {
@@ -260,7 +260,7 @@ class ItemFactory {
 
         'abandon_weapon_for_literature': {
             name: '弃武从文',
-            price: 250,
+            price: 600,
             type: 'positive',
             description: '消耗2点弃牌点,返还上一手牌消耗的行动点(全额返还,最高不超过5点)',
             effect: (gameState) => {
@@ -284,7 +284,7 @@ class ItemFactory {
 
         'offense_defense_swap': {
             name: '攻守易势',
-            price: 280,
+            price: 580,
             type: 'positive',
             description: '将你的当前行动点与弃牌点数量互换',
             effect: (gameState) => {
@@ -300,7 +300,7 @@ class ItemFactory {
 
         'backwater_battle': {
             name: '背水一战',
-            price: 290,
+            price: 620,
             type: 'positive',
             description: '本回合内,若你的手牌数大于20张,则所有牌型消耗的行动点减少1点(最低降至1点)',
             effect: (gameState) => {
@@ -317,7 +317,7 @@ class ItemFactory {
 
         'desperate_stake': {
             name: '孤注一掷',
-            price: 200,
+            price: 520,
             type: 'positive',
             description: '立即获得3点行动点,但本回合结束时,你每剩余1点行动力,下回合的行动点便减少1点',
             effect: (gameState) => {
@@ -330,7 +330,7 @@ class ItemFactory {
 
         'chain_reaction': {
             name: '连锁效应',
-            price: 260,
+            price: 550,
             type: 'positive',
             description: '本回合内,你的连击(combo)倍率额外提升0.2倍(例如1.3倍变为1.5倍)',
             effect: (gameState) => {
@@ -342,7 +342,7 @@ class ItemFactory {
 
         'sacrifice_piece': {
             name: '弃卒保车',
-            price: 240,
+            price: 380,
             type: 'positive',
             description: '消耗2点弃牌点,从本次弃掉的牌中,选择一张放回手牌底部,然后你抽一张牌',
             effect: (gameState, selectedCards) => {
@@ -369,7 +369,7 @@ class ItemFactory {
 
         'score_double': {
             name: '积分翻倍',
-            price: 330,
+            price: 700,
             type: 'positive',
             description: '本回合你打出的第一手牌,其基础积分翻倍(此翻倍效果计算在连击倍率之前)',
             effect: (gameState) => {
@@ -382,7 +382,7 @@ class ItemFactory {
 
         'risky_victory': {
             name: '险中求胜',
-            price: 220,
+            price: 360,
             type: 'positive',
             description: '本回合结束时,若你的手牌数小于等于5张,则立即获得2点弃牌点',
             effect: (gameState) => {
@@ -497,7 +497,7 @@ class ItemFactory {
         // ===== 永久道具 =====
         'piggy_gold': {
             name: '黄金存钱罐',
-            price: 300,
+            price: 350,
             type: 'permanent',
             description: '每回合开始时额外获得20分',
             effect: (gameState) => {
@@ -505,39 +505,9 @@ class ItemFactory {
             }
         },
 
-        'piggy_diamond': {
-            name: '钻石存钱罐',
-            price: 700,
-            type: 'permanent',
-            description: '每回合开始时额外获得50分',
-            effect: (gameState) => {
-                return { success: true, message: '永久道具已购买!', permanent: true };
-            }
-        },
-
-        'piggy_king': {
-            name: '王者存钱罐',
-            price: 1200,
-            type: 'permanent',
-            description: '每回合开始时额外获得100分',
-            effect: (gameState) => {
-                return { success: true, message: '永久道具已购买!', permanent: true };
-            }
-        },
-
-        'lucky_clover': {
-            name: '幸运四叶草',
-            price: 800,
-            type: 'permanent',
-            description: '每局开始时有20%概率获得1张随机王牌',
-            effect: (gameState) => {
-                return { success: true, message: '永久道具已购买!', permanent: true };
-            }
-        },
-
         'permanent_action_boost': {
             name: '行动点核心',
-            price: 900,
+            price: 1000,
             type: 'permanent',
             description: '永久增加每回合最大行动点+1',
             effect: (gameState) => {
@@ -547,7 +517,7 @@ class ItemFactory {
 
         'permanent_discard_draw_extra': {
             name: '弃旧图新',
-            price: 700,
+            price: 750,
             type: 'permanent',
             description: '每次弃牌额外多抽一张牌',
             effect: (gameState) => {
@@ -557,7 +527,7 @@ class ItemFactory {
 
         'permanent_discard_score_bonus': {
             name: '去粗取精',
-            price: 600,
+            price: 650,
             type: 'permanent',
             description: '弃牌时，每弃掉一张牌获得3积分',
             effect: (gameState) => {
@@ -569,13 +539,20 @@ class ItemFactory {
         // ===== 传奇道具 =====
         'destiny_scale': {
             name: '命运天秤',
-            price: 1000,
+            price: 1500,
             type: 'legendary',
             description: '购买后，立即将当前总积分的一半（向下取整）转化为等额金币',
             effect: (gameState) => {
                 const halfScore = Math.floor(gameState.score / 2);
-                gameState.score += halfScore;
-                return { success: true, message: `命运天秤生效！获得${halfScore}分！` };
+                // 从积分中扣除
+                gameState.score -= halfScore;
+                // 转化为永久金币
+                gameState.coins += halfScore;
+                // 保存金币到localStorage
+                if (typeof SaveManager !== 'undefined') {
+                    SaveManager.saveCoins(gameState.coins);
+                }
+                return { success: true, message: `命运天秤生效！已将${halfScore}积分转化为${halfScore}金币！` };
             }
         },
 
@@ -623,7 +600,8 @@ class ItemFactory {
             name: '完美时刻',
             price: 1000,
             type: 'legendary',
-            description: '购买后，把本回合剩余的所有行动点转化为等额弃牌点，然后结束本回合',
+            addToInventory: true,  // 标记：购买后加入道具栏而非立即使用
+            description: '使用后，把本回合剩余的所有行动点转化为等额弃牌点，然后结束本回合',
             effect: (gameState) => {
                 // 获取当前剩余的行动点
                 const remainingActionPoints = gameState.actionPoints;
@@ -726,9 +704,6 @@ class ItemFactory {
             25: 'time_accel',                // 时间加速
             26: 'action_overdraft',          // 行动点透支
             27: 'piggy_gold',                // 黄金存钱罐
-            28: 'piggy_diamond',             // 钻石存钱罐
-            29: 'piggy_king',                // 王者存钱罐
-            30: 'lucky_clover',              // 幸运四叶草
             31: 'permanent_action_boost',    // 行动点核心
             32: 'permanent_discard_draw_extra', // 弃旧图新
             33: 'permanent_discard_score_bonus',  // 去粗取精
@@ -857,10 +832,11 @@ class Shop {
         // 基础价格
         let finalPrice = item.price;
 
-        // 商店涨价机制（正面道具和永久道具，负面道具除外）
+        // 商店涨价机制（正面道具、永久道具和传奇道具，负面道具除外）
         // 5-7关：每关上涨15%（向下取整）
         // 8-10关：每关上涨25%（向下取整）
-        if (gameState.level >= 5 && (item.type === 'positive' || item.type === 'permanent')) {
+        // 涨价上限：原价的2.5倍
+        if (gameState.level >= 5 && (item.type === 'positive' || item.type === 'permanent' || item.type === 'legendary')) {
             let priceMultiplier = 1;
 
             if (gameState.level >= 5 && gameState.level <= 7) {
@@ -875,12 +851,16 @@ class Shop {
                 priceMultiplier = level7Multiplier * level8PlusMultiplier;
             }
 
+            // 涨价上限：最高为原价的2.5倍
+            priceMultiplier = Math.min(priceMultiplier, 2.5);
+
             finalPrice = Math.floor(item.price * priceMultiplier);
         }
 
-        // 特质：经济头脑 - 商店所有道具价格降低30%
-        if (gameState.currentTrait && gameState.currentTrait.id === 'economic_mind') {
-            finalPrice = Math.floor(finalPrice * 0.7);
+        // 特质：经济头脑 - 商店所有道具价格降低20%（不影响负面道具）
+        if (gameState.currentTrait && gameState.currentTrait.id === 'economic_mind' &&
+            item.type !== 'negative' && item.type !== 'instant_negative') {
+            finalPrice = Math.floor(finalPrice * 0.8);
         }
 
         // 负面道具是给钱的
@@ -907,7 +887,7 @@ class Shop {
             }
         }
 
-        // 传奇道具：立即生效
+        // 传奇道具：检查是否加入道具栏或立即生效
         if (item.type === 'legendary') {
             // 初始化已购买的传奇道具列表
             if (!gameState.purchasedLegendaryItems) {
@@ -920,7 +900,17 @@ class Shop {
                 return { success: false, message: '已购买过此传奇道具!' };
             }
 
-            // 先执行道具效果
+            // 检查是否需要加入道具栏
+            const itemData = ItemFactory.ITEMS[item.id];
+            if (itemData && itemData.addToInventory) {
+                // 加入道具栏
+                gameState.addTemporaryItem(item);
+                this.usedThisRound = true;  // 标记已使用
+                gameState.purchasedLegendaryItems.push(item.id);
+                return { success: true, message: `购买成功!${item.name}已加入道具栏!` };
+            }
+
+            // 立即生效的传奇道具
             const result = item.effect(gameState);
 
             // 只有在效果成功时才标记已使用和记录购买
@@ -1083,7 +1073,7 @@ class HintAlgorithm {
         // 去重
         const uniqueValues = [...new Set(sorted.map(c => c.value))];
 
-        // 查找5张及以上的连续牌
+        // 查找恰好5张的连续牌
         for (let i = 0; i < uniqueValues.length; i++) {
             let consecutive = [uniqueValues[i]];
             for (let j = i + 1; j < uniqueValues.length; j++) {
@@ -1094,7 +1084,7 @@ class HintAlgorithm {
                 }
             }
 
-            if (consecutive.length >= 5) {
+            if (consecutive.length === 5) {
                 const cards = consecutive.map(val =>
                     sorted.find(c => c.value === val)
                 );
@@ -1127,7 +1117,7 @@ class HintAlgorithm {
 
         pairs.sort((a, b) => a - b);
 
-        // 查找3对及以上的连续对子
+        // 查找恰好3对的连续对子
         for (let i = 0; i < pairs.length; i++) {
             let consecutive = [pairs[i]];
             for (let j = i + 1; j < pairs.length; j++) {
@@ -1138,7 +1128,7 @@ class HintAlgorithm {
                 }
             }
 
-            if (consecutive.length >= 3) {
+            if (consecutive.length === 3) {
                 const cards = [];
                 consecutive.forEach(val => {
                     cards.push(...valueCount[val].slice(0, 2));
