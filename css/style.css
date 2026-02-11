@@ -940,6 +940,69 @@ body {
     transform: none;
 }
 
+/* 天赋商店模态框 */
+.talent-shop-modal {
+    max-width: 800px;
+}
+
+/* 天赋商店网格 */
+.talent-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.talent-shop-item {
+    background: #2c3e50;
+    border: 3px solid #9b59b6;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.talent-shop-item:hover:not(.purchased) {
+    background: #8e44ad;
+    transform: scale(1.05);
+    border-color: #f39c12;
+}
+
+.talent-shop-item.purchased {
+    background: #27ae60;
+    border-color: #2ecc71;
+    cursor: default;
+}
+
+.talent-shop-item.purchased:hover {
+    transform: none;
+}
+
+.talent-shop-name {
+    font-size: 12px;
+    color: #f39c12;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.talent-shop-desc {
+    font-size: 9px;
+    color: #ecf0f1;
+    line-height: 1.5;
+    margin-bottom: 10px;
+    flex-grow: 1;
+}
+
+.talent-shop-price {
+    font-size: 10px;
+    color: #f39c12;
+    font-weight: bold;
+}
+
 .card-shop-rank {
     font-size: 24px;
     margin-bottom: 8px;

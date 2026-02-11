@@ -863,6 +863,12 @@ class Shop {
             finalPrice = Math.floor(finalPrice * 0.8);
         }
 
+        // 天赋：长期合作 - 全局商店所有道具价格永久降低10%（不影响负面道具）
+        if (gameState.purchasedTalents && gameState.purchasedTalents.includes('long_term_coop') &&
+            item.type !== 'negative' && item.type !== 'instant_negative') {
+            finalPrice = Math.floor(finalPrice * 0.9);
+        }
+
         // 负面道具是给钱的
         const cost = Math.max(0, finalPrice);
 

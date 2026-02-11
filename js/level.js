@@ -333,6 +333,7 @@ class SaveManager {
     static SAVE_KEY = 'doudizhu_rogue_save';
     static COIN_KEY = 'doudizhu_rogue_coins';  // 金币存档键
     static CARD_SHOP_KEY = 'doudizhu_rogue_card_shop';  // 卡牌商店存档键
+    static TALENT_KEY = 'doudizhu_rogue_talents';  // 天赋存档键
 
     // 保存游戏
     static save(gameState) {
@@ -420,6 +421,28 @@ class SaveManager {
         }
     }
 
+    // 保存天赋数据
+    static saveTalents(talents) {
+        try {
+            localStorage.setItem(this.TALENT_KEY, JSON.stringify(talents));
+            return true;
+        } catch (e) {
+            console.error('保存天赋失败:', e);
+            return false;
+        }
+    }
+
+    // 加载天赋数据
+    static loadTalents() {
+        try {
+            const data = localStorage.getItem(this.TALENT_KEY);
+            return data ? JSON.parse(data) : [];
+        } catch (e) {
+            console.error('加载天赋失败:', e);
+            return [];
+        }
+    }
+
     // 加载游戏
     static load() {
         try {
@@ -454,12 +477,13 @@ class SaveManager {
         return localStorage.getItem(this.SAVE_KEY) !== null;
     }
 
-    // 删除存档(包括金币和卡牌升级)
+    // 删除存档(包括金币、卡牌升级和天赋)
     static deleteSave() {
         try {
             localStorage.removeItem(this.SAVE_KEY);
             localStorage.removeItem(this.COIN_KEY);
             localStorage.removeItem(this.CARD_SHOP_KEY);
+            localStorage.removeItem(this.TALENT_KEY);
             return true;
         } catch (e) {
             console.error('删除存档失败:', e);
@@ -525,6 +549,9 @@ class SaveManager {
 
         // 恢复卡牌升级状态
         gameState.upgradedCardRanks = SaveManager.loadCardUpgrades();
+
+        // 恢复天赋数据
+        gameState.purchasedTalents = SaveManager.loadTalents();
 
         // 发牌(此时会应用透支惩罚)
         const cardCount = LevelManager.getCardCount(gameState.level);

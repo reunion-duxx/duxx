@@ -145,6 +145,11 @@ class Game {
             this.openCardShop();
         });
 
+        // 天赋商店按钮
+        document.getElementById('talentShopBtn').addEventListener('click', () => {
+            this.openTalentShop();
+        });
+
         // 重置存档
         document.getElementById('resetGameBtn').addEventListener('click', () => {
             if (confirm('【警告】确定要删除存档吗？\n\n此操作将同时删除：\n- 游戏进度\n- 所有金币\n- 所有卡牌升级\n\n此操作不可恢复！')) {
@@ -159,6 +164,11 @@ class Game {
         // 关闭卡牌商店按钮
         document.getElementById('closeCardShopBtn').addEventListener('click', () => {
             this.closeCardShop();
+        });
+
+        // 关闭天赋商店按钮
+        document.getElementById('closeTalentShopBtn').addEventListener('click', () => {
+            this.closeTalentShop();
         });
     }
 
@@ -216,6 +226,9 @@ class Game {
 
         // 加载卡牌升级状态
         this.state.upgradedCardRanks = SaveManager.loadCardUpgrades();
+
+        // 加载天赋数据
+        this.state.purchasedTalents = SaveManager.loadTalents();
 
         // 初始化特质选择
         this.state.availableTraits = TraitManager.drawThreeTraits();
@@ -433,6 +446,103 @@ class Game {
     // 关闭卡牌商店
     closeCardShop() {
         const modal = document.getElementById('cardShopModal');
+        modal.style.display = 'none';
+    }
+
+    // 打开天赋商店
+    openTalentShop() {
+        const modal = document.getElementById('talentShopModal');
+        modal.style.display = 'flex';
+
+        // 加载已购买的天赋
+        const purchasedTalents = SaveManager.loadTalents();
+
+        // 天赋定义
+        const talents = [
+            {
+                id: 'emergency_reserve',
+                name: '应急储备',
+                price: 1000,
+                description: '每局游戏开始时，额外获得1点行动点（仅第一回合生效）'
+            },
+            {
+                id: 'long_term_coop',
+                name: '长期合作',
+                price: 2000,
+                description: '全局商店所有道具价格永久降低10%'
+            },
+            {
+                id: 'secondhand_prep',
+                name: '二手准备',
+                price: 1500,
+                description: '每关第一次弃牌不消耗弃牌点'
+            }
+        ];
+
+        // 渲染天赋商店
+        this.renderTalentShop(talents, purchasedTalents);
+        this.updateCoinDisplay();
+
+        // 更新天赋商店的金币显示
+        const talentShopCoins = document.getElementById('talentShopCoins');
+        if (talentShopCoins) {
+            talentShopCoins.textContent = `💰 金币: ${this.coins}`;
+        }
+    }
+
+    // 渲染天赋商店
+    renderTalentShop(talents, purchasedTalents) {
+        const grid = document.getElementById('talentShopGrid');
+        grid.innerHTML = '';
+
+        talents.forEach(talent => {
+            const isPurchased = purchasedTalents.includes(talent.id);
+
+            const item = document.createElement('div');
+            item.className = 'talent-shop-item' + (isPurchased ? ' purchased' : '');
+
+            item.innerHTML = `
+                <div class="talent-shop-name">${talent.name}</div>
+                <div class="talent-shop-desc">${talent.description}</div>
+                <div class="talent-shop-price">${isPurchased ? '✓ 已购买' : `${talent.price} 金币`}</div>
+            `;
+
+            if (!isPurchased) {
+                item.addEventListener('click', () => {
+                    if (this.coins >= talent.price) {
+                        if (confirm(`确定要花费 ${talent.price} 金币购买天赋"${talent.name}"吗？\n\n${talent.description}\n\n天赋效果永久跨局生效！`)) {
+                            // 扣除金币
+                            this.coins -= talent.price;
+                            SaveManager.saveCoins(this.coins);
+
+                            // 添加到已购买列表
+                            purchasedTalents.push(talent.id);
+                            SaveManager.saveTalents(purchasedTalents);
+
+                            // 更新显示
+                            this.updateCoinDisplay();
+                            this.renderTalentShop(talents, purchasedTalents);
+
+                            // 播放音效
+                            if (window.audioManager) {
+                                window.audioManager.playButtonClick();
+                            }
+
+                            alert(`成功购买天赋"${talent.name}"！\n\n天赋效果将在下次游戏中生效。`);
+                        }
+                    } else {
+                        alert(`金币不足！需要 ${talent.price} 金币，当前仅有 ${this.coins} 金币。`);
+                    }
+                });
+            }
+
+            grid.appendChild(item);
+        });
+    }
+
+    // 关闭天赋商店
+    closeTalentShop() {
+        const modal = document.getElementById('talentShopModal');
         modal.style.display = 'none';
     }
 

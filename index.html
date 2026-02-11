@@ -37,6 +37,7 @@
             <button class="pixel-button info-btn" id="tutorialBtn">新手教程</button>
             <button class="pixel-button action-btn" id="continueGameBtn">继续游戏</button>
             <button class="pixel-button action-btn" id="cardShopBtn">卡牌商店</button>
+            <button class="pixel-button action-btn" id="talentShopBtn">天赋商店</button>
             <button class="pixel-button info-btn" id="resetGameBtn">重置存档</button>
             <div class="coin-display" id="coinDisplay">💰 金币: 0</div>
         </div>
@@ -106,6 +107,17 @@
                 <div class="coin-display" id="cardShopCoins">💰 金币: 0</div>
                 <div id="cardShopGrid" class="card-shop-grid"></div>
                 <button class="pixel-button" id="closeCardShopBtn">关闭</button>
+            </div>
+        </div>
+
+        <!-- 天赋商店弹窗 -->
+        <div id="talentShopModal" class="modal" style="display: none;">
+            <div class="modal-content talent-shop-modal">
+                <h2>天赋商店</h2>
+                <p class="shop-description">购买天赋后永久跨局生效，提供强大的被动效果</p>
+                <div class="coin-display" id="talentShopCoins">💰 金币: 0</div>
+                <div id="talentShopGrid" class="talent-shop-grid"></div>
+                <button class="pixel-button" id="closeTalentShopBtn">关闭</button>
             </div>
         </div>
 

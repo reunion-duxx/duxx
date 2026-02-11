@@ -411,6 +411,10 @@ class GameState {
         this.traitSelected = false;  // 是否已选择特质
         this.discardUsedThisRoundForTrait = false;  // 本回合是否使用过弃牌（用于以逸待劳特质）
 
+        // 天赋系统（永久跨局生效）
+        this.purchasedTalents = [];  // 已购买的天赋ID列表
+        this.firstDiscardUsedThisLevel = false;  // 本关是否已使用过第一次弃牌（用于二手准备天赋）
+
         // 负面规则系统（第6关开始，50%概率触发）
         this.negativeRule = null;  // 当前负面规则: null/'erosion'/'costIncrease'/'rankTax'/'monotone'
         this.negativeRuleData = {};  // 负面规则数据
@@ -484,6 +488,11 @@ class GameState {
             this.actionPoints = this.maxActionPoints;
         }
 
+        // 天赋：应急储备 - 每局游戏开始时（第一回合），额外获得1点行动点
+        if (this.purchasedTalents && this.purchasedTalents.includes('emergency_reserve') && this.round === 1) {
+            this.actionPoints += 1;
+        }
+
         // 创建完整的牌库
         const allCards = this.createFullDeck();
 
@@ -509,6 +518,9 @@ class GameState {
         this.discardPoints = 2;
         this.currentDiscardCost = this.discardPointCost;  // 重置弃牌消耗为基础值
         this.discardUsedThisRound = 0;  // 重置使用次数
+
+        // 重置本关第一次弃牌标记（用于二手准备天赋）
+        this.firstDiscardUsedThisLevel = false;
 
         // 应用永久道具的初始分数加成
         this.applyPermanentBonuses();
@@ -1145,8 +1157,16 @@ class GameState {
             return false;
         }
 
+        // 确定本关的积分要求
+        let requiredScore = this.levelScoreRequirement;
+
+        // Boss关特殊积分要求
+        if (this.isBossLevel && this.bossRuleData.requiredScore) {
+            requiredScore = this.bossRuleData.requiredScore;
+        }
+
         // 基础条件：手牌出完且关卡积分达标
-        const basicCondition = this.handCards.length === 0 && this.levelScore >= this.levelScoreRequirement;
+        const basicCondition = this.handCards.length === 0 && this.levelScore >= requiredScore;
 
         if (!basicCondition) {
             return false;
@@ -1189,11 +1209,19 @@ class GameState {
             maxAllowedRound = this.maxRounds + 1;  // 其他情况：允许B评价的额外回合
         }
 
+        // 确定本关的积分要求
+        let requiredScore = this.levelScoreRequirement;
+
+        // Boss关特殊积分要求
+        if (this.isBossLevel && this.bossRuleData.requiredScore) {
+            requiredScore = this.bossRuleData.requiredScore;
+        }
+
         // 失败条件：
         // 1. 超过最大允许回合且手牌仍有剩余
         // 2. 或者手牌已出完但积分未达标
         return (this.round > maxAllowedRound && this.handCards.length > 0) ||
-               (this.handCards.length === 0 && this.levelScore < this.levelScoreRequirement);
+               (this.handCards.length === 0 && this.levelScore < requiredScore);
     }
 
     // 获取评价对应的金币倍率
@@ -1375,9 +1403,15 @@ class GameState {
             return { success: false, message: '请选择1-5张牌进行弃牌!' };
         }
 
+        // 天赋：二手准备 - 每关第一次弃牌不消耗弃牌点
+        let actualDiscardCost = this.currentDiscardCost;
+        if (this.purchasedTalents && this.purchasedTalents.includes('secondhand_prep') && !this.firstDiscardUsedThisLevel) {
+            actualDiscardCost = 0;
+        }
+
         // 验证：弃牌点是否足够（使用当前动态消耗）
-        if (this.discardPoints < this.currentDiscardCost) {
-            return { success: false, message: `弃牌点不足!本次弃牌需要${this.currentDiscardCost}点` };
+        if (this.discardPoints < actualDiscardCost) {
+            return { success: false, message: `弃牌点不足!本次弃牌需要${actualDiscardCost}点` };
         }
 
         // 计算实际抽牌数（包括额外抽牌奖励）
@@ -1393,8 +1427,13 @@ class GameState {
             return { success: false, message: '牌堆剩余牌数不足!' };
         }
 
-        // 扣除弃牌点（使用当前动态消耗）
-        this.discardPoints -= this.currentDiscardCost;
+        // 扣除弃牌点（使用实际消耗，考虑二手准备天赋）
+        this.discardPoints -= actualDiscardCost;
+
+        // 标记本关已使用过第一次弃牌（用于二手准备天赋）
+        if (!this.firstDiscardUsedThisLevel) {
+            this.firstDiscardUsedThisLevel = true;
+        }
 
         // 标记本回合已使用弃牌（用于以逸待劳特质）
         this.discardUsedThisRoundForTrait = true;
