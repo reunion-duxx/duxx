@@ -776,6 +776,44 @@ class Shop {
         this.usedThisRound = false;  // 标记本轮商店是否已使用
     }
 
+    // 计算刷新费用
+    getRefreshCost(refreshCount) {
+        if (refreshCount === 0) {
+            return 0;  // 首次免费
+        } else if (refreshCount === 1) {
+            return 100;  // 第二次100分
+        } else if (refreshCount === 2) {
+            return 200;  // 第三次200分
+        } else {
+            return 250;  // 第四次及以后250分
+        }
+    }
+
+    // 执行刷新（玩家主动刷新）
+    performRefresh(gameState) {
+        const cost = this.getRefreshCost(gameState.shopRefreshCount);
+
+        // 检查积分是否足够
+        if (gameState.score < cost) {
+            return { success: false, message: `积分不足！需要${cost}分，当前${gameState.score}分` };
+        }
+
+        // 扣除积分
+        gameState.score -= cost;
+
+        // 增加刷新次数
+        gameState.shopRefreshCount++;
+
+        // 刷新商店道具
+        this.refreshItems(gameState);
+
+        return {
+            success: true,
+            message: cost === 0 ? '商店已刷新！（免费）' : `商店已刷新！消耗${cost}分`,
+            cost: cost
+        };
+    }
+
     // 刷新商店道具
     refreshItems(gameState) {
         // 根据关卡决定是否显示永久道具

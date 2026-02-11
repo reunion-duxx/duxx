@@ -424,6 +424,9 @@ class GameState {
 
         // 连击衰减系统
         this.patternComboCount = {};  // 本回合各牌型连续使用次数（用于积分衰减）
+
+        // 商店刷新系统
+        this.shopRefreshCount = 0;  // 本关商店刷新次数
     }
 
     // 发牌

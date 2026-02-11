@@ -38,6 +38,9 @@ class LevelManager {
         // 抽取3个特质供玩家选择
         gameState.availableTraits = TraitManager.drawThreeTraits();
 
+        // 重置商店刷新次数
+        gameState.shopRefreshCount = 0;
+
         // 临时道具保留，不清空（玩家可以跨关卡使用）
 
         // ===== Boss关系统 =====
@@ -250,6 +253,9 @@ class LevelManager {
         gameState.discardUsedThisRoundForTrait = false;
         // 重新抽取3个特质供玩家选择
         gameState.availableTraits = TraitManager.drawThreeTraits();
+
+        // 重置商店刷新次数
+        gameState.shopRefreshCount = 0;
 
         // Boss关重试：重置boss规则数据但保持规则类型
         if (gameState.isBossLevel && gameState.bossRule) {

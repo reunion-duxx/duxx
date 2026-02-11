@@ -8,13 +8,15 @@ class InputHandler {
         this.shop = shop;
         this.selectedCards = [];
         this.hoveredCardIndex = -1; // 当前悬停的卡牌索引
+        this.mouseX = 0; // 鼠标X坐标
+        this.mouseY = 0; // 鼠标Y坐标
 
         this.bindEvents();
     }
 
     // 绑定所有事件
     bindEvents() {
-        // Canvas点击/触摸事件 - 选牌
+        // Canvas点击/触摸事件 - 选牌或点击Boss规则
         const handleCardSelect = (e) => {
             e.preventDefault(); // 防止默认触摸行为
             const rect = this.canvas.getBoundingClientRect();
@@ -25,6 +27,15 @@ class InputHandler {
 
             const x = clientX - rect.left;
             const y = clientY - rect.top;
+
+            // 检查是否点击了Boss规则区域
+            if (this.renderer.isMouseOverBossRule(x, y)) {
+                this.renderer.toggleBossRuleTooltip();
+                return;
+            }
+
+            // 如果点击了其他地方，隐藏Boss规则提示框
+            this.renderer.hideBossRuleTooltip();
 
             const index = this.renderer.getCardIndexAt(x, y, this.gameState.handCards, this.gameState.level);
             if (index !== -1) {
@@ -38,12 +49,24 @@ class InputHandler {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
+            // 保存鼠标坐标
+            this.mouseX = x;
+            this.mouseY = y;
+
+            // 检查是否悬停在Boss规则区域（优先级最高）
+            if (this.renderer.isMouseOverBossRule(x, y)) {
+                this.canvas.style.cursor = 'help';
+                return;
+            }
+
+            // 检查是否悬停在卡牌上
             const index = this.renderer.getCardIndexAt(x, y, this.gameState.handCards, this.gameState.level);
             if (index !== this.hoveredCardIndex) {
                 this.hoveredCardIndex = index;
-                // 悬停状态改变时，更新光标样式
-                this.canvas.style.cursor = index !== -1 ? 'pointer' : 'default';
             }
+
+            // 根据悬停状态设置光标
+            this.canvas.style.cursor = index !== -1 ? 'pointer' : 'default';
         };
 
         // 鼠标离开Canvas时清除悬停状态
@@ -556,6 +579,27 @@ class InputHandler {
         }
     }
 
+    // 处理商店刷新
+    handleShopRefresh() {
+        const result = this.shop.performRefresh(this.gameState);
+
+        if (result.success) {
+            // 播放音效
+            if (window.audioManager) {
+                window.audioManager.playButtonClick();
+            }
+
+            // 关闭并重新打开商店以显示新道具
+            this.closeShop();
+            this.openShop();
+
+            // 显示刷新结果
+            alert(result.message);
+        } else {
+            alert(result.message);
+        }
+    }
+
     // 打开商店
     openShop() {
         // 暂停限时关卡的倒计时
@@ -599,6 +643,40 @@ class InputHandler {
                 alert(`🎭 混乱法师Boss奖励！\n\n免费获得道具：${itemNames}`);
             }
         }
+
+        // 显示刷新按钮和费用信息
+        const refreshSection = document.createElement('div');
+        refreshSection.style.marginBottom = '15px';
+        refreshSection.style.textAlign = 'center';
+        refreshSection.style.padding = '10px';
+        refreshSection.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+        refreshSection.style.borderRadius = '5px';
+
+        const refreshCost = this.shop.getRefreshCost(this.gameState.shopRefreshCount);
+        const nextRefreshCost = this.shop.getRefreshCost(this.gameState.shopRefreshCount + 1);
+
+        const refreshInfo = document.createElement('div');
+        refreshInfo.style.color = '#ecf0f1';
+        refreshInfo.style.fontSize = '11px';
+        refreshInfo.style.marginBottom = '8px';
+        refreshInfo.textContent = `本关已刷新${this.gameState.shopRefreshCount}次 | 下次刷新: ${nextRefreshCost === 0 ? '免费' : nextRefreshCost + '分'}`;
+        refreshSection.appendChild(refreshInfo);
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'refreshShopBtn';
+        refreshBtn.className = 'game-button';
+        refreshBtn.textContent = `🔄 刷新商店 ${refreshCost === 0 ? '(免费)' : '(' + refreshCost + '分)'}`;
+        refreshBtn.style.fontSize = '12px';
+        refreshBtn.style.padding = '8px 16px';
+
+        // 绑定刷新按钮点击事件
+        refreshBtn.addEventListener('click', () => {
+            this.handleShopRefresh();
+        });
+
+        refreshSection.appendChild(refreshBtn);
+
+        shopItems.appendChild(refreshSection);
 
         // 显示商店使用状态
         if (this.shop.usedThisRound) {
@@ -1101,6 +1179,11 @@ class InputHandler {
     // 获取悬停的牌索引
     getHoveredIndex() {
         return this.hoveredCardIndex;
+    }
+
+    // 获取鼠标位置
+    getMousePosition() {
+        return { x: this.mouseX, y: this.mouseY };
     }
 
     // 显示特质选择界面

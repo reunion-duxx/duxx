@@ -13,6 +13,10 @@ class UIRenderer {
         this.targetScore = 0; // 目标积分
         this.scoreAnimationSpeed = 5; // 滚动速度（每帧增加的积分）
 
+        // Boss规则悬停区域
+        this.bossRuleHoverArea = null;
+        this.bossRuleTooltipVisible = false; // 提示框是否可见
+
         // 初始化Canvas上下文状态
         this.initCanvasContext();
     }
@@ -79,6 +83,103 @@ class UIRenderer {
         // 重新设置字体和渲染属性（fillRect 可能会重置某些状态）
         this.ctx.imageSmoothingEnabled = false;
         this.ctx.font = '11px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif';
+    }
+
+    // 获取Boss规则完整描述
+    getBossRuleDescription(rule, level) {
+        if (rule === 'perfectionist') {
+            if (level === 4) {
+                return '规则：必须在3回合内出完所有手牌，且总积分必须达到1.1倍要求\n奖励：本局游戏剩余关卡积分获取+20%';
+            } else if (level === 10) {
+                return '规则：必须在2回合内出完所有手牌，且总积分必须达到1.5倍要求\n奖励：本局游戏剩余关卡积分获取+20%';
+            }
+        }
+
+        const descriptions = {
+            'orderGuardian': '规则：必须按顺序出牌型\n单牌→对子→[三张/三带一/三带二]→顺子→连对→[飞机/飞机带单翅膀/飞机带对翅膀]→炸弹→四带二\n方括号内的牌型打出任意一种即可解锁下一组，火箭可随时打出\n奖励：永久行动点+2（本局游戏）',
+            'chaosMage': '规则：每回合开始时随机交换两种牌型的行动点消耗，牌型积分不变\n奖励：随机获得2个商店道具（免费）',
+            'pressureTester': '规则：无法主动弃牌，回合结束时若手牌超过15张，超出部分每张使下回合行动点-1\n奖励：本局游戏剩余关卡每回合行动点+1',
+            'sacrificer': '规则：每次打出一手牌后，必须立即从手牌中弃掉一张与所出牌型中任意一张牌点数相同的牌\n若手牌中没有可匹配点数的牌，则改为随机弃掉两张手牌\n奖励：永久获得弃牌点上限+2'
+        };
+
+        return descriptions[rule] || 'Boss关卡';
+    }
+
+    // 检查鼠标是否悬停在Boss规则区域
+    isMouseOverBossRule(mouseX, mouseY) {
+        if (!this.bossRuleHoverArea) return false;
+
+        const area = this.bossRuleHoverArea;
+        return mouseX >= area.x &&
+               mouseX <= area.x + area.width &&
+               mouseY >= area.y &&
+               mouseY <= area.y + area.height + 5;
+    }
+
+    // 切换Boss规则提示框显示状态
+    toggleBossRuleTooltip() {
+        this.bossRuleTooltipVisible = !this.bossRuleTooltipVisible;
+    }
+
+    // 隐藏Boss规则提示框
+    hideBossRuleTooltip() {
+        this.bossRuleTooltipVisible = false;
+    }
+
+    // 绘制Boss规则提示框
+    drawBossRuleTooltip(mouseX, mouseY) {
+        if (!this.bossRuleHoverArea || !this.bossRuleTooltipVisible) return;
+
+        const area = this.bossRuleHoverArea;
+        const description = this.getBossRuleDescription(area.rule, area.level);
+
+        // 分割描述为多行
+        const lines = description.split('\n');
+        const lineHeight = 16 * this.scale;
+        const padding = 10 * this.scale;
+        const fontSize = Math.max(7, Math.floor(9 * this.scale));
+
+        // 计算提示框尺寸
+        this.ctx.font = `${fontSize}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
+        let maxWidth = 0;
+        lines.forEach(line => {
+            const width = this.ctx.measureText(line).width;
+            if (width > maxWidth) maxWidth = width;
+        });
+
+        const tooltipWidth = maxWidth + padding * 2;
+        const tooltipHeight = lines.length * lineHeight + padding * 2;
+
+        // 计算提示框位置（固定在Boss规则文字下方）
+        let tooltipX = area.x;
+        let tooltipY = area.y + area.height + 10 * this.scale;
+
+        // 避免超出屏幕右侧
+        if (tooltipX + tooltipWidth > this.canvas.width) {
+            tooltipX = this.canvas.width - tooltipWidth - 10 * this.scale;
+        }
+        // 避免超出屏幕底部
+        if (tooltipY + tooltipHeight > this.canvas.height) {
+            tooltipY = area.y - tooltipHeight - 10 * this.scale;
+        }
+
+        // 绘制提示框背景
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        this.ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+
+        // 绘制边框
+        this.ctx.strokeStyle = '#9b59b6';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+
+        // 绘制文字
+        this.ctx.fillStyle = '#ecf0f1';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'top';
+
+        lines.forEach((line, index) => {
+            this.ctx.fillText(line, tooltipX + padding, tooltipY + padding + index * lineHeight);
+        });
     }
 
     // 绘制顶部信息栏
@@ -167,32 +268,35 @@ class UIRenderer {
             this.ctx.fillText(sealedText, 150 * this.scale, y2);
         }
 
-        // Boss关规则提示
+        // Boss关规则提示（简化版：仅显示图标和名称）
         if (gameState.isBossLevel && gameState.bossRule) {
             this.ctx.fillStyle = '#9b59b6';
             this.ctx.font = `${Math.max(8, Math.floor(12 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
 
-            let bossText = '';
-            if (gameState.bossRule === 'perfectionist') {
-                // 完美主义者根据关卡显示不同文本
-                if (gameState.level === 4) {
-                    bossText = '💎 Boss: 完美主义者 - 3回合内完成，积分需达1.1倍';
-                } else if (gameState.level === 10) {
-                    bossText = '💎 Boss: 完美主义者 - 2回合内完成，积分需达1.5倍';
-                } else {
-                    bossText = '💎 Boss: 完美主义者';
-                }
-            } else {
-                const bossRuleNames = {
-                    'orderGuardian': '🛡️ Boss: 秩序守护者 - 按顺序解锁牌型',
-                    'chaosMage': '🎭 Boss: 混乱法师 - 每回合随机交换牌型消耗',
-                    'pressureTester': '⚡ Boss: 压力测试者 - 无法弃牌，手牌>15张会惩罚',
-                    'sacrificer': '🔥 Boss: 献祭者 - 出牌后必须献祭相同点数的牌'
-                };
-                bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
-            }
+            const bossRuleNames = {
+                'perfectionist': '💎 完美主义者',
+                'orderGuardian': '🛡️ 秩序守护者',
+                'chaosMage': '🎭 混乱法师',
+                'pressureTester': '⚡ 压力测试者',
+                'sacrificer': '🔥 献祭者'
+            };
+            const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
 
-            this.ctx.fillText(bossText, 400 * this.scale, y2);
+            const textX = 400 * this.scale;
+            const textY = y2;
+            this.ctx.fillText(bossText, textX, textY);
+
+            // 保存悬停区域（用于鼠标悬停检测）
+            const textWidth = this.ctx.measureText(bossText).width;
+            const textHeight = Math.max(8, Math.floor(12 * this.scale));
+            this.bossRuleHoverArea = {
+                x: textX,
+                y: textY,
+                width: textWidth,
+                height: textHeight,
+                rule: gameState.bossRule,
+                level: gameState.level
+            };
         }
         // 特殊规则提示
         else if (gameState.specialRule === 'timeLimit') {
@@ -297,21 +401,33 @@ class UIRenderer {
             currentY += lineHeight;
         }
 
-        // Boss关规则提示（简化版）
+        // Boss关规则提示（简化版：仅显示图标和名称）
         if (gameState.isBossLevel && gameState.bossRule) {
             this.ctx.fillStyle = '#9b59b6';
             this.ctx.font = `${Math.max(6, Math.floor(8 * this.scale))}px "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif`;
 
             const bossRuleNames = {
-                'perfectionist': '💎 完美主义',
-                'orderGuardian': '🛡️ 秩序守护',
+                'perfectionist': '💎 完美主义者',
+                'orderGuardian': '🛡️ 秩序守护者',
                 'chaosMage': '🎭 混乱法师',
-                'pressureTester': '⚡ 压力测试',
+                'pressureTester': '⚡ 压力测试者',
                 'sacrificer': '🔥 献祭者'
             };
 
             const bossText = bossRuleNames[gameState.bossRule] || 'Boss关卡';
             this.ctx.fillText(bossText, padding, currentY);
+
+            // 保存悬停区域（用于鼠标悬停检测）
+            const textWidth = this.ctx.measureText(bossText).width;
+            const textHeight = Math.max(6, Math.floor(8 * this.scale));
+            this.bossRuleHoverArea = {
+                x: padding,
+                y: currentY,
+                width: textWidth,
+                height: textHeight,
+                rule: gameState.bossRule,
+                level: gameState.level
+            };
         }
         // 特殊规则提示（简化版）
         else if (gameState.specialRule === 'timeLimit') {

@@ -345,6 +345,12 @@ class Game {
         // 恢复上下文
         this.ctx.restore();
 
+        // 绘制Boss规则提示框（点击后显示，在所有内容之上，不受震动影响）
+        if (this.input && this.renderer.bossRuleTooltipVisible) {
+            const mousePos = this.input.getMousePosition();
+            this.renderer.drawBossRuleTooltip(mousePos.x, mousePos.y);
+        }
+
         // 绘制提示信息（不受震动影响）
         if (this.state.gameOver) {
             if (this.state.checkWinCondition()) {
