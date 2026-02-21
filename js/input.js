@@ -193,13 +193,15 @@ class InputHandler {
             // 完美主义者Boss：第4关3回合，第10关2回合
             maxAllowedRound = this.gameState.maxRounds;
         } else if (this.gameState.level === 10) {
-            // 第10关：严格限制2回合
-            maxAllowedRound = 2;
+            // 第10关：使用maxRounds而不是硬编码的2，这样回合沙漏道具才能生效
+            maxAllowedRound = this.gameState.maxRounds;
         } else {
             maxAllowedRound = this.gameState.maxRounds + 1;
         }
         if (this.gameState.round > maxAllowedRound) {
-            alert('回合已用完!');
+            // 回合已用完，触发失败检查
+            alert(`⚠️ 回合已用完!\n剩余手牌: ${this.gameState.handCards.length}张\n挑战失败!`);
+            this.handleLose();
             return;
         }
 
@@ -250,6 +252,12 @@ class InputHandler {
             return;
         }
 
+        // 处理大小王/火箭特殊效果
+        if (playResult && playResult.specialEffect) {
+            this.handleSpecialEffect(playResult.specialEffect);
+            return;
+        }
+
         // 检查是否手牌出完但积分不足（失败情况）
         if (this.gameState.handCards.length === 0 && !this.gameState.checkWinCondition()) {
             console.log('[playCards] 手牌出完但积分不足，触发失败');
@@ -259,8 +267,8 @@ class InputHandler {
                 failReason = `积分未达标！\n本关积分: ${this.gameState.levelScore}/${this.gameState.levelScoreRequirement}\n差距: ${this.gameState.levelScoreRequirement - this.gameState.levelScore}分`;
             } else if (this.gameState.level === 9 && this.gameState.usedPatternTypes.size < 4) {
                 failReason = `第9关要求使用至少4种不同牌型！\n当前使用: ${this.gameState.usedPatternTypes.size}种`;
-            } else if (this.gameState.level === 10 && this.gameState.round > 2) {
-                failReason = `第10关要求在2回合内出完牌！\n当前回合: ${this.gameState.round}`;
+            } else if (this.gameState.level === 10 && this.gameState.round > this.gameState.maxRounds) {
+                failReason = `第10关要求在${this.gameState.maxRounds}回合内出完牌！\n当前回合: ${this.gameState.round}`;
             }
             alert(`⚠️ 手牌已出完，但${failReason}`);
             this.handleLose();
@@ -409,6 +417,151 @@ class InputHandler {
         }
     }
 
+    // 处理大小王/火箭特殊效果
+    handleSpecialEffect(effectData) {
+        if (effectData.type === 'joker_single') {
+            // 大小王效果：从牌库顶端3张牌中选择
+            this.renderer.renderSpecialEffectSelection(
+                effectData,
+                (selectedIndex) => {
+                    const result = this.gameState.handleJokerSingleEffect(selectedIndex);
+                    if (result.success) {
+                        console.log('[特殊效果] 大小王效果触发，获得卡牌:', result.card);
+
+                        // 播放音效
+                        if (window.audioManager) {
+                            window.audioManager.playCardSelect();
+                        }
+
+                        // 添加飞入动画
+                        if (window.game && window.game.animationManager && result.card) {
+                            const centerX = this.canvas.width / 2;
+                            const centerY = this.canvas.height / 2 - 50;
+
+                            // 计算新卡牌应该出现的位置（手牌最右侧）
+                            const scale = this.renderer.scale;
+                            const startX = 50 * scale;
+                            const cardHeight = this.renderer.cardHeight;
+                            const level = this.gameState.level;
+                            const handCardsCount = this.gameState.handCards.length;
+
+                            let handX, handY;
+
+                            if (level >= 5) {
+                                // 两行显示逻辑
+                                const midPoint = Math.ceil(handCardsCount / 2);
+                                const bottomRowCount = handCardsCount - midPoint;
+                                const bottomGap = Math.min(60 * scale, (this.canvas.width - 100 * scale) / (midPoint + 1));
+
+                                // 新卡牌在下行最右侧
+                                handX = startX + bottomRowCount * bottomGap;
+                                handY = this.canvas.height - cardHeight - 80 * scale;
+                            } else {
+                                // 单行显示逻辑
+                                const gap = Math.min(60 * scale, (this.canvas.width - 100 * scale) / (handCardsCount + 1));
+                                handX = startX + (handCardsCount - 1) * gap;
+                                handY = this.canvas.height - cardHeight - 80 * scale;
+                            }
+
+                            const animation = new CardFlyInAnimation(result.card, centerX, centerY, handX, handY, this.renderer);
+                            window.game.animationManager.add(animation);
+                            console.log('[特殊效果] 飞入动画已添加，目标位置:', { handX, handY });
+                            console.log('[特殊效果] 当前动画管理器中的动画数量:', window.game.animationManager.animations.length);
+
+                            // 延迟显示提示，让动画先播放
+                            setTimeout(() => {
+                                alert(result.message);
+                            }, 900); // 等待动画完成（800ms）+ 100ms缓冲
+                        } else {
+                            console.log('[特殊效果] 动画未添加，检查条件:', {
+                                hasGame: !!window.game,
+                                hasAnimationManager: !!(window.game && window.game.animationManager),
+                                hasCard: !!result.card
+                            });
+                            alert(result.message);
+                        }
+                    } else {
+                        alert(result.message);
+                    }
+                },
+                () => {
+                    // 取消选择，不做任何操作
+                    console.log('[特殊效果] 用户取消选择');
+                }
+            );
+        } else if (effectData.type === 'rocket') {
+            // 火箭效果：选择任意点数
+            this.renderer.renderSpecialEffectSelection(
+                effectData,
+                (selectedRank) => {
+                    const result = this.gameState.handleRocketEffect(selectedRank);
+                    if (result.success) {
+                        console.log('[特殊效果] 火箭效果触发，获得卡牌:', result.card);
+
+                        // 播放音效
+                        if (window.audioManager) {
+                            window.audioManager.playCardSelect();
+                        }
+
+                        // 添加飞入动画
+                        if (window.game && window.game.animationManager && result.card) {
+                            const centerX = this.canvas.width / 2;
+                            const centerY = this.canvas.height / 2 - 50;
+
+                            // 计算新卡牌应该出现的位置（手牌最右侧）
+                            const scale = this.renderer.scale;
+                            const startX = 50 * scale;
+                            const cardHeight = this.renderer.cardHeight;
+                            const level = this.gameState.level;
+                            const handCardsCount = this.gameState.handCards.length;
+
+                            let handX, handY;
+
+                            if (level >= 5) {
+                                // 两行显示逻辑
+                                const midPoint = Math.ceil(handCardsCount / 2);
+                                const bottomRowCount = handCardsCount - midPoint;
+                                const bottomGap = Math.min(60 * scale, (this.canvas.width - 100 * scale) / (midPoint + 1));
+
+                                // 新卡牌在下行最右侧
+                                handX = startX + bottomRowCount * bottomGap;
+                                handY = this.canvas.height - cardHeight - 80 * scale;
+                            } else {
+                                // 单行显示逻辑
+                                const gap = Math.min(60 * scale, (this.canvas.width - 100 * scale) / (handCardsCount + 1));
+                                handX = startX + (handCardsCount - 1) * gap;
+                                handY = this.canvas.height - cardHeight - 80 * scale;
+                            }
+
+                            const animation = new CardFlyInAnimation(result.card, centerX, centerY, handX, handY, this.renderer);
+                            window.game.animationManager.add(animation);
+                            console.log('[特殊效果] 飞入动画已添加，目标位置:', { handX, handY });
+                            console.log('[特殊效果] 当前动画管理器中的动画数量:', window.game.animationManager.animations.length);
+
+                            // 延迟显示提示，让动画先播放
+                            setTimeout(() => {
+                                alert(result.message);
+                            }, 900); // 等待动画完成（800ms）+ 100ms缓冲
+                        } else {
+                            console.log('[特殊效果] 动画未添加，检查条件:', {
+                                hasGame: !!window.game,
+                                hasAnimationManager: !!(window.game && window.game.animationManager),
+                                hasCard: !!result.card
+                            });
+                            alert(result.message);
+                        }
+                    } else {
+                        alert(result.message);
+                    }
+                },
+                () => {
+                    // 取消选择，不做任何操作
+                    console.log('[特殊效果] 用户取消选择');
+                }
+            );
+        }
+    }
+
     // 处理结束回合
     handleEndRound() {
         // 检查游戏是否已经结束
@@ -430,13 +583,15 @@ class InputHandler {
             // 完美主义者Boss：第4关3回合，第10关2回合
             maxAllowedRound = this.gameState.maxRounds;
         } else if (this.gameState.level === 10) {
-            // 第10关：严格限制2回合
-            maxAllowedRound = 2;
+            // 第10关：使用maxRounds而不是硬编码的2，这样回合沙漏道具才能生效
+            maxAllowedRound = this.gameState.maxRounds;
         } else {
             maxAllowedRound = this.gameState.maxRounds + 1;
         }
         if (this.gameState.round > maxAllowedRound) {
-            alert('回合已用完!');
+            // 回合已用完，触发失败检查
+            alert(`⚠️ 回合已用完!\n剩余手牌: ${this.gameState.handCards.length}张\n挑战失败!`);
+            this.handleLose();
             return;
         }
 
@@ -520,25 +675,77 @@ class InputHandler {
         // 获取选中的牌
         const cards = this.selectedCards.map(i => this.gameState.handCards[i]);
 
+        // 在执行弃牌之前，先保存选中卡牌的位置信息（用于动画）
+        const discardedCardsInfo = [];
+        const startX = 50 * this.renderer.scale;
+        const level = this.gameState.level;
+
+        if (level >= 5) {
+            // 两行显示
+            const midPoint = Math.ceil(this.gameState.handCards.length / 2);
+            const topGap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / midPoint);
+            const bottomGap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / (this.gameState.handCards.length - midPoint));
+            const rowSpacing = 90 * this.renderer.scale;
+            const topY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale - rowSpacing;
+            const bottomY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale;
+
+            this.selectedCards.forEach(index => {
+                const card = this.gameState.handCards[index];
+                let x, y;
+                if (index < midPoint) {
+                    x = startX + index * topGap;
+                    y = topY;
+                } else {
+                    x = startX + (index - midPoint) * bottomGap;
+                    y = bottomY;
+                }
+                discardedCardsInfo.push({ card, x, y });
+            });
+        } else {
+            // 单行显示
+            const startY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale;
+            const gap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / this.gameState.handCards.length);
+
+            this.selectedCards.forEach(index => {
+                const card = this.gameState.handCards[index];
+                const x = startX + index * gap;
+                const y = startY;
+                discardedCardsInfo.push({ card, x, y });
+            });
+        }
+
         // 执行弃牌
         const result = this.gameState.discardAndDraw(cards);
 
         if (result.success) {
+            // 触发弃牌动画
+            if (window.game) {
+                console.log('[handleDiscard] 触发弃牌动画，弃牌数:', discardedCardsInfo.length, '抽牌数:', result.drawnCards.length);
+                window.game.triggerDiscardAnimation(discardedCardsInfo, result.drawnCards);
+            }
+
             // 清空选择
             this.selectedCards = [];
 
-            // 显示结果
-            const cardNames = result.drawnCards.map(c => c.toString()).join(', ');
-            alert(`${result.message}\n新牌: ${cardNames}`);
+            // 计算动画总时长
+            const discardDuration = 200 + (discardedCardsInfo.length - 1) * 50;
+            const drawDuration = 250 + (result.drawnCards.length - 1) * 50;
+            const totalDuration = discardDuration + 100 + drawDuration;
 
-            // 教程模式: 检测步骤4完成 (在alert之后,避免阻塞)
-            if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
-                console.log('[Input] 教程模式激活,当前步骤:', window.game.tutorialManager.getCurrentStepId());
-                if (window.game.tutorialManager.getCurrentStepId() === 'discard') {
-                    console.log('[Input] 调用 markStepCompleted(discard)');
-                    window.game.tutorialManager.markStepCompleted('discard');
+            // 动画完成后显示结果
+            setTimeout(() => {
+                const cardNames = result.drawnCards.map(c => c.toString()).join(', ');
+                alert(`${result.message}\n新牌: ${cardNames}`);
+
+                // 教程模式: 检测步骤4完成 (在alert之后,避免阻塞)
+                if (window.game && window.game.tutorialManager && window.game.tutorialManager.isActive) {
+                    console.log('[Input] 教程模式激活,当前步骤:', window.game.tutorialManager.getCurrentStepId());
+                    if (window.game.tutorialManager.getCurrentStepId() === 'discard') {
+                        console.log('[Input] 调用 markStepCompleted(discard)');
+                        window.game.tutorialManager.markStepCompleted('discard');
+                    }
                 }
-            }
+            }, totalDuration);
         } else {
             alert(result.message);
         }
@@ -866,6 +1073,12 @@ class InputHandler {
         // 这样惩罚会在下回合生效，而不是下下回合
         if (this.gameState.actionPenaltyNextRound > 0) {
             this.gameState.resetActionPoints();
+        }
+
+        // 触发发牌动画（如果有新抽的牌）
+        if (this.gameState.lastDrawnCards && this.gameState.lastDrawnCards.length > 0 && window.game) {
+            window.game.triggerDealCardsAnimation(this.gameState.lastDrawnCards);
+            this.gameState.lastDrawnCards = null; // 清空标记
         }
     }
 
@@ -1228,7 +1441,10 @@ class InputHandler {
             window.audioManager.playButtonClick();
         }
 
-        alert(`已选择特质: ${trait.name}\n${trait.description}`);
+        // 触发发牌动画
+        if (window.game) {
+            window.game.triggerDealCardsAnimation(this.gameState.handCards);
+        }
     }
 
     // 显示提示模态框

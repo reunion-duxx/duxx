@@ -12,7 +12,14 @@ class LevelManager {
         gameState.level++;
         gameState.round = 1;
         gameState.combo = 1.0;
-        gameState.maxRounds = 3;
+
+        // 第10关固定为2回合，其他关卡为3回合
+        if (gameState.level === 10) {
+            gameState.maxRounds = 2;
+        } else {
+            gameState.maxRounds = 3;
+        }
+
         gameState.lastPlayed = null;
         gameState.lastScore = 0;
         gameState.gameOver = false;
@@ -40,6 +47,9 @@ class LevelManager {
 
         // 重置商店刷新次数
         gameState.shopRefreshCount = 0;
+
+        // 重置回合沙漏使用次数（每关重新计算）
+        gameState.hourglassUsedCount = 0;
 
         // 临时道具保留，不清空（玩家可以跨关卡使用）
 
@@ -86,7 +96,7 @@ class LevelManager {
                     gameState.maxRounds = 3; // 第4关限制为3回合
                 } else if (gameState.level === 10) {
                     gameState.bossRuleData.requiredScore = Math.floor(gameState.levelScoreRequirements[gameState.level] * 1.5);
-                    gameState.maxRounds = 2; // 第10关限制为2回合
+                    // 第10关已经默认为2回合，不需要再设置
                 }
             } else if (gameState.bossRule === 'orderGuardian') {
                 // 秩序守护者：按顺序分组解锁牌型
@@ -127,6 +137,13 @@ class LevelManager {
                 // 献祭者：每次出牌后必须弃掉一张相同点数的牌，否则随机弃两张
                 gameState.bossRuleData.sacrificeRequired = false; // 是否需要献祭
                 gameState.bossRuleData.lastPlayedRanks = []; // 上次出牌的点数列表
+
+                // 献祭者特殊积分要求
+                if (gameState.level === 4) {
+                    gameState.bossRuleData.requiredScore = 200;  // 第4关要求200分
+                } else if (gameState.level === 10) {
+                    gameState.bossRuleData.requiredScore = 600;  // 第10关要求600分
+                }
             }
 
             // boss关不触发普通特殊规则
@@ -229,7 +246,14 @@ class LevelManager {
     static retryLevel(gameState) {
         gameState.round = 1;
         gameState.combo = 1.0;
-        gameState.maxRounds = 3;
+
+        // 第10关固定为2回合，其他关卡为3回合
+        if (gameState.level === 10) {
+            gameState.maxRounds = 2;
+        } else {
+            gameState.maxRounds = 3;
+        }
+
         gameState.lastPlayed = null;
         gameState.lastScore = 0;
         gameState.gameOver = false;
@@ -257,6 +281,9 @@ class LevelManager {
         // 重置商店刷新次数
         gameState.shopRefreshCount = 0;
 
+        // 重置回合沙漏使用次数（重试时重置）
+        gameState.hourglassUsedCount = 0;
+
         // Boss关重试：重置boss规则数据但保持规则类型
         if (gameState.isBossLevel && gameState.bossRule) {
             if (gameState.bossRule === 'perfectionist') {
@@ -264,6 +291,7 @@ class LevelManager {
                 if (gameState.level === 4) {
                     gameState.maxRounds = 3;
                 } else if (gameState.level === 10) {
+                    // 第10关已经默认为2回合，不需要再设置
                     gameState.maxRounds = 2;
                 }
             } else if (gameState.bossRule === 'orderGuardian') {
@@ -304,6 +332,13 @@ class LevelManager {
                 // 献祭者：重置献祭状态
                 gameState.bossRuleData.sacrificeRequired = false;
                 gameState.bossRuleData.lastPlayedRanks = [];
+
+                // 献祭者特殊积分要求
+                if (gameState.level === 4) {
+                    gameState.bossRuleData.requiredScore = 200;  // 第4关要求200分
+                } else if (gameState.level === 10) {
+                    gameState.bossRuleData.requiredScore = 600;  // 第10关要求600分
+                }
             }
         }
 
@@ -538,6 +573,39 @@ class SaveManager {
         gameState.bossRule = saveData.bossRule || null;
         gameState.bossRuleData = saveData.bossRuleData || {};
         gameState.bossRewardPending = saveData.bossRewardPending || false;
+
+        // 秩序守护者：重置解锁状态（防止存档后重新进入游戏时保留已解锁的牌型）
+        if (gameState.bossRule === 'orderGuardian') {
+            gameState.bossRuleData.unlockedPatterns = ['SINGLE'];
+            gameState.bossRuleData.patternGroups = [
+                ['SINGLE'],
+                ['PAIR'],
+                ['TRIPLE', 'TRIPLE_SINGLE', 'TRIPLE_PAIR'],
+                ['STRAIGHT'],
+                ['DOUBLE_STRAIGHT'],
+                ['AIRPLANE', 'AIRPLANE_SINGLE_WINGS', 'AIRPLANE_PAIR_WINGS'],
+                ['BOMB'],
+                ['FOUR_PAIR']
+            ];
+            gameState.bossRuleData.currentGroupIndex = 0;
+            gameState.bossRuleData.currentGroupCompleted = false;
+
+            // 恢复特殊积分要求
+            if (gameState.level === 4) {
+                gameState.bossRuleData.requiredScore = 280;
+            } else if (gameState.level === 10) {
+                gameState.bossRuleData.requiredScore = 1000;
+            }
+        }
+
+        // 献祭者：恢复特殊积分要求
+        if (gameState.bossRule === 'sacrificer') {
+            if (gameState.level === 4) {
+                gameState.bossRuleData.requiredScore = 200;
+            } else if (gameState.level === 10) {
+                gameState.bossRuleData.requiredScore = 600;
+            }
+        }
 
         // 恢复豪赌状态（按钮状态不恢复，防止重复点击）
         gameState.gambleLevelActive = saveData.gambleLevelActive || false;

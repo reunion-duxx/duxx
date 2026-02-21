@@ -107,9 +107,20 @@ class ItemFactory {
             type: 'positive',
             description: '额外增加1个回合(最多使用2次)',
             effect: (gameState) => {
-                // 直接增加最大回合数
+                // 检查使用次数限制
+                if (!gameState.hourglassUsedCount) {
+                    gameState.hourglassUsedCount = 0;
+                }
+
+                if (gameState.hourglassUsedCount >= 2) {
+                    return { success: false, message: '回合沙漏已达到使用上限(2次)!' };
+                }
+
+                // 增加最大回合数
                 gameState.maxRounds++;
-                return { success: true, message: `回合数+1! 当前最大回合数: ${gameState.maxRounds}` };
+                gameState.hourglassUsedCount++;
+
+                return { success: true, message: `回合数+1! 当前最大回合数: ${gameState.maxRounds} (已使用${gameState.hourglassUsedCount}/2次)` };
             }
         },
 

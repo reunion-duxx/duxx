@@ -247,7 +247,8 @@ class Game {
         // 等待一帧,确保Canvas上下文完全准备好
         requestAnimationFrame(() => {
             this.gameLoop(performance.now());
-            // 显示特质选择界面
+
+            // 显示特质选择界面（不触发发牌动画）
             setTimeout(() => {
                 this.input.showTraitSelection();
             }, 100);
@@ -318,6 +319,9 @@ class Game {
         // 清空画布
         this.renderer.clear();
 
+        // 绘制牌库图标（左上角）
+        this.renderer.drawDeckIcon(20 * this.renderer.scale, 80 * this.renderer.scale);
+
         // 获取屏幕震动偏移
         const shakeOffset = this.animationManager.getShakeOffset();
 
@@ -335,9 +339,24 @@ class Game {
         this.renderer.drawPlayArea(this.state.lastPlayed, this.state.lastScore);
 
         // 绘制手牌（传递悬停索引和游戏状态）
-        const selectedIndices = this.input ? this.input.getSelectedIndices() : [];
-        const hoveredIndex = this.input ? this.input.getHoveredIndex() : -1;
-        this.renderer.drawHandCards(this.state.handCards, selectedIndices, this.state.level, hoveredIndex, this.state);
+        // 如果正在播放发牌动画，只绘制已着陆的牌
+        if (!this.state.hideHandCards) {
+            const selectedIndices = this.input ? this.input.getSelectedIndices() : [];
+            const hoveredIndex = this.input ? this.input.getHoveredIndex() : -1;
+
+            // 如果有已着陆的牌列表且不为空，只渲染已着陆的牌
+            if (this.state.landedCardIndices && this.state.landedCardIndices.length > 0 && this.state.landedCardIndices.length < this.state.handCards.length) {
+                // 过滤出已着陆的牌
+                const landedCards = this.state.handCards.filter((card, index) => this.state.landedCardIndices.includes(index));
+                const landedSelectedIndices = selectedIndices.filter(index => this.state.landedCardIndices.includes(index));
+                const landedHoveredIndex = this.state.landedCardIndices.includes(hoveredIndex) ? hoveredIndex : -1;
+
+                this.renderer.drawHandCards(landedCards, landedSelectedIndices, this.state.level, landedHoveredIndex, this.state);
+            } else {
+                // 正常渲染所有手牌
+                this.renderer.drawHandCards(this.state.handCards, selectedIndices, this.state.level, hoveredIndex, this.state);
+            }
+        }
 
         // 绘制动画
         this.animationManager.render(this.ctx);
@@ -366,6 +385,151 @@ class Game {
             if (this.state.round > maxAllowedRound) {
                 this.renderer.drawHint('回合已用完!请结束回合', '#e74c3c');
             }
+        }
+    }
+
+    // 触发发牌动画
+    triggerDealCardsAnimation(cards) {
+        // 清空已着陆的卡牌索引
+        this.state.landedCardIndices = [];
+
+        // 牌库位置（左上角）
+        const deckX = 20 * this.renderer.scale;
+        const deckY = 80 * this.renderer.scale;
+
+        // 计算手牌区位置
+        const startX = 50 * this.renderer.scale;
+        const level = this.state.level;
+
+        if (level >= 5) {
+            // 两行显示
+            const midPoint = Math.ceil(cards.length / 2);
+            const topRowCards = cards.slice(0, midPoint);
+            const bottomRowCards = cards.slice(midPoint);
+
+            const topGap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / topRowCards.length);
+            const bottomGap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / bottomRowCards.length);
+
+            const rowSpacing = 90 * this.renderer.scale;
+            const topY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale - rowSpacing;
+            const bottomY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale;
+
+            // 上行动画
+            topRowCards.forEach((card, i) => {
+                const endX = startX + i * topGap;
+                const endY = topY;
+                const delay = i * 100; // 每张牌间隔0.1秒
+                const anim = new CardFlyInAnimation(card, deckX, deckY, endX, endY, this.renderer, delay, i, this.state);
+                this.animationManager.add(anim);
+            });
+
+            // 下行动画
+            bottomRowCards.forEach((card, i) => {
+                const endX = startX + i * bottomGap;
+                const endY = bottomY;
+                const delay = (midPoint + i) * 100; // 继续延迟
+                const anim = new CardFlyInAnimation(card, deckX, deckY, endX, endY, this.renderer, delay, midPoint + i, this.state);
+                this.animationManager.add(anim);
+            });
+        } else {
+            // 单行显示
+            const startY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale;
+            const gap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / cards.length);
+
+            cards.forEach((card, i) => {
+                const endX = startX + i * gap;
+                const endY = startY;
+                const delay = i * 100; // 每张牌间隔0.1秒
+                const anim = new CardFlyInAnimation(card, deckX, deckY, endX, endY, this.renderer, delay, i, this.state);
+                this.animationManager.add(anim);
+            });
+        }
+    }
+
+    // 触发弃牌动画
+    triggerDiscardAnimation(discardedCards, drawnCards) {
+        // 标记所有现有手牌为已着陆（除了新抽的牌）
+        this.state.landedCardIndices = [];
+        const newCardStartIndex = this.state.handCards.length - drawnCards.length;
+        for (let i = 0; i < newCardStartIndex; i++) {
+            this.state.landedCardIndices.push(i);
+        }
+
+        // 弃牌堆位置（右下角）
+        const discardPileX = this.canvas.width - 100 * this.renderer.scale;
+        const discardPileY = this.canvas.height - 100 * this.renderer.scale;
+
+        // 牌库位置（左上角）
+        const deckX = 20 * this.renderer.scale;
+        const deckY = 80 * this.renderer.scale;
+
+        // 计算手牌区位置
+        const startX = 50 * this.renderer.scale;
+        const level = this.state.level;
+
+        // 1. 弃牌飞出动画
+        discardedCards.forEach((cardInfo, i) => {
+            const delay = i * 50; // 每张牌间隔0.05秒
+            const anim = new CardFlyOutAnimation(
+                cardInfo.card,
+                cardInfo.x,
+                cardInfo.y,
+                discardPileX,
+                discardPileY,
+                this.renderer,
+                delay
+            );
+            this.animationManager.add(anim);
+        });
+
+        // 2. 短暂停顿后，抽牌补入动画
+        const discardDuration = 200 + (discardedCards.length - 1) * 50; // 弃牌总时长
+
+        if (level >= 5) {
+            // 两行显示 - 需要计算新牌的位置
+            const midPoint = Math.ceil(this.state.handCards.length / 2);
+            const topRowCount = midPoint;
+            const bottomRowCount = this.state.handCards.length - midPoint;
+
+            const topGap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / topRowCount);
+            const bottomGap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / bottomRowCount);
+
+            const rowSpacing = 90 * this.renderer.scale;
+            const topY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale - rowSpacing;
+            const bottomY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale;
+
+            // 简化处理：新牌飞入到手牌区末尾
+            drawnCards.forEach((card, i) => {
+                const cardIndex = this.state.handCards.length - drawnCards.length + i;
+                let endX, endY;
+
+                if (cardIndex < midPoint) {
+                    // 上行
+                    endX = startX + cardIndex * topGap;
+                    endY = topY;
+                } else {
+                    // 下行
+                    endX = startX + (cardIndex - midPoint) * bottomGap;
+                    endY = bottomY;
+                }
+
+                const delay = discardDuration + 100 + i * 50; // 弃牌完成后延迟0.1秒，然后每张间隔0.05秒
+                const anim = new CardFlyInAnimation(card, deckX, deckY, endX, endY, this.renderer, delay, cardIndex, this.state);
+                this.animationManager.add(anim);
+            });
+        } else {
+            // 单行显示
+            const startY = this.canvas.height - this.renderer.cardHeight - 80 * this.renderer.scale;
+            const gap = Math.min(60 * this.renderer.scale, (this.canvas.width - 100 * this.renderer.scale) / this.state.handCards.length);
+
+            drawnCards.forEach((card, i) => {
+                const cardIndex = this.state.handCards.length - drawnCards.length + i;
+                const endX = startX + cardIndex * gap;
+                const endY = startY;
+                const delay = discardDuration + 100 + i * 50; // 弃牌完成后延迟0.1秒，然后每张间隔0.05秒
+                const anim = new CardFlyInAnimation(card, deckX, deckY, endX, endY, this.renderer, delay, cardIndex, this.state);
+                this.animationManager.add(anim);
+            });
         }
     }
 

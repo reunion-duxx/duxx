@@ -694,6 +694,60 @@ class UIRenderer {
         this.ctx.restore();
     }
 
+    // 绘制卡背
+    drawCardBack(x, y) {
+        const w = this.cardWidth;
+        const h = this.cardHeight;
+
+        this.ctx.save();
+
+        // 卡背背景（深蓝色）
+        this.ctx.fillStyle = '#2c3e50';
+        this.ctx.fillRect(x, y, w, h);
+
+        // 边框
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = Math.max(1, 2 * this.scale);
+        this.ctx.strokeRect(x, y, w, h);
+
+        // 中央图案（简单的菱形）
+        this.ctx.fillStyle = '#34495e';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + w / 2, y + 10 * this.scale);
+        this.ctx.lineTo(x + w - 10 * this.scale, y + h / 2);
+        this.ctx.lineTo(x + w / 2, y + h - 10 * this.scale);
+        this.ctx.lineTo(x + 10 * this.scale, y + h / 2);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        this.ctx.restore();
+    }
+
+    // 绘制牌库图标
+    drawDeckIcon(x, y) {
+        const w = this.cardWidth * 0.6;
+        const h = this.cardHeight * 0.6;
+
+        this.ctx.save();
+
+        // 绘制3层叠加的卡背，模拟牌堆效果
+        for (let i = 0; i < 3; i++) {
+            const offsetX = i * 2 * this.scale;
+            const offsetY = i * 2 * this.scale;
+
+            // 卡背背景
+            this.ctx.fillStyle = '#2c3e50';
+            this.ctx.fillRect(x + offsetX, y + offsetY, w, h);
+
+            // 边框
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(x + offsetX, y + offsetY, w, h);
+        }
+
+        this.ctx.restore();
+    }
+
     // 绘制出牌区域
     drawPlayArea(lastPlayed, lastScore) {
         const centerX = this.canvas.width / 2;
@@ -873,13 +927,13 @@ class UIRenderer {
 
             // 第10关额外胜利条件
             if (gameState.level === 10) {
-                // 如果不是完美主义者boss，显示2回合限制
+                // 如果不是完美主义者boss，显示回合限制
                 if (!gameState.isBossLevel || gameState.bossRule !== 'perfectionist') {
-                    const extraColor = gameState.round <= 2 ? '#2ecc71' : '#e74c3c';
+                    const extraColor = gameState.round <= gameState.maxRounds ? '#2ecc71' : '#e74c3c';
                     levelScoreInfo += `
                         <div style="color: ${extraColor}; margin-top: 10px; font-size: 10px;">
                             ⭐ 额外要求:<br/>
-                            2回合内完成<br/>
+                            ${gameState.maxRounds}回合内完成<br/>
                             (当前第${gameState.round}回合)
                         </div>
                     `;
@@ -1024,6 +1078,168 @@ class UIRenderer {
 
             activeEffectsDiv.innerHTML = effectsHtml;
         }
+    }
+
+    // 渲染大小王/火箭特殊效果选牌界面
+    renderSpecialEffectSelection(effectData, onSelect, onCancel) {
+        const modal = document.createElement('div');
+        modal.id = 'specialEffectModal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        `;
+
+        const content = document.createElement('div');
+        content.style.cssText = `
+            background: #2c3e50;
+            padding: 30px;
+            border-radius: 10px;
+            border: 3px solid #f39c12;
+            max-width: 600px;
+            text-align: center;
+        `;
+
+        const title = document.createElement('div');
+        title.style.cssText = `
+            font-size: 20px;
+            color: #f39c12;
+            margin-bottom: 20px;
+            font-family: "Press Start 2P", "Microsoft YaHei", "PingFang SC", sans-serif;
+        `;
+
+        const optionsContainer = document.createElement('div');
+        optionsContainer.style.cssText = `
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        `;
+
+        if (effectData.type === 'joker_single') {
+            // 大小王效果：显示牌库顶端3张牌
+            title.textContent = '选择一张牌加入手牌';
+
+            effectData.cards.forEach((card, index) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.style.cssText = `
+                    width: 70px;
+                    height: 98px;
+                    background: white;
+                    border: 2px solid #000;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    transition: transform 0.2s;
+                `;
+
+                const rankText = document.createElement('div');
+                rankText.textContent = card.rank;
+                rankText.style.cssText = `
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: ${card.isRed() ? '#e74c3c' : '#000'};
+                `;
+
+                const suitSymbols = {
+                    'hearts': '♥',
+                    'spades': '♠',
+                    'diamonds': '♦',
+                    'clubs': '♣',
+                    'joker': ''
+                };
+                const suitText = document.createElement('div');
+                suitText.textContent = suitSymbols[card.suit];
+                suitText.style.cssText = `
+                    font-size: 24px;
+                    color: ${card.isRed() ? '#e74c3c' : '#000'};
+                `;
+
+                cardDiv.appendChild(rankText);
+                cardDiv.appendChild(suitText);
+
+                cardDiv.addEventListener('mouseenter', () => {
+                    cardDiv.style.transform = 'scale(1.1)';
+                });
+                cardDiv.addEventListener('mouseleave', () => {
+                    cardDiv.style.transform = 'scale(1)';
+                });
+                cardDiv.addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                    onSelect(index);
+                });
+
+                optionsContainer.appendChild(cardDiv);
+            });
+        } else if (effectData.type === 'rocket') {
+            // 火箭效果：显示所有点数
+            title.textContent = '选择一个点数获得该牌';
+
+            effectData.ranks.forEach(rank => {
+                const rankDiv = document.createElement('div');
+                rankDiv.style.cssText = `
+                    width: 60px;
+                    height: 60px;
+                    background: #ecf0f1;
+                    border: 2px solid #000;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    font-size: 18px;
+                    font-weight: bold;
+                    transition: transform 0.2s, background 0.2s;
+                `;
+
+                rankDiv.textContent = rank;
+
+                rankDiv.addEventListener('mouseenter', () => {
+                    rankDiv.style.transform = 'scale(1.1)';
+                    rankDiv.style.background = '#f39c12';
+                });
+                rankDiv.addEventListener('mouseleave', () => {
+                    rankDiv.style.transform = 'scale(1)';
+                    rankDiv.style.background = '#ecf0f1';
+                });
+                rankDiv.addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                    onSelect(rank);
+                });
+
+                optionsContainer.appendChild(rankDiv);
+            });
+        }
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '取消';
+        cancelBtn.className = 'game-button';
+        cancelBtn.style.cssText = `
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        `;
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+            onCancel();
+        });
+
+        content.appendChild(title);
+        content.appendChild(optionsContainer);
+        content.appendChild(cancelBtn);
+        modal.appendChild(content);
+        document.body.appendChild(modal);
     }
 
     // 渲染特质选择界面
@@ -1296,6 +1512,116 @@ class RocketLaunchAnimation {
         ctx.closePath();
         ctx.fill();
 
+        ctx.restore();
+    }
+}
+
+// 卡牌飞入动画
+class CardFlyInAnimation {
+    constructor(card, startX, startY, endX, endY, renderer, delay = 0, cardIndex = -1, gameState = null) {
+        this.card = card;
+        this.startX = startX;
+        this.startY = startY;
+        this.endX = endX;
+        this.endY = endY;
+        this.renderer = renderer;
+        this.delay = delay; // 延迟时间（毫秒）
+        this.time = -delay; // 从负值开始，实现延迟效果
+        this.duration = 250; // 0.25秒
+        this.finished = false;
+        this.cardIndex = cardIndex; // 卡牌在手牌中的索引
+        this.gameState = gameState; // 游戏状态引用
+    }
+
+    update(deltaTime) {
+        this.time += deltaTime;
+        if (this.time >= this.duration) {
+            this.finished = true;
+            // 动画完成时，标记该牌已着陆
+            if (this.gameState && this.cardIndex >= 0 && !this.gameState.landedCardIndices.includes(this.cardIndex)) {
+                this.gameState.landedCardIndices.push(this.cardIndex);
+            }
+            return;
+        }
+    }
+
+    render(ctx) {
+        // 延迟期间不渲染
+        if (this.time < 0) return;
+
+        const progress = this.time / this.duration;
+
+        // 使用缓动函数（ease-out-quad）
+        const easeProgress = 1 - Math.pow(1 - progress, 2);
+
+        // 计算当前位置
+        const currentX = this.startX + (this.endX - this.startX) * easeProgress;
+        const currentY = this.startY + (this.endY - this.startY) * easeProgress;
+
+        // 添加轻微弧线效果（贝塞尔曲线，控制点略偏上方）
+        const arc = Math.sin(progress * Math.PI) * 30;
+
+        // 绘制卡牌（正面朝上）
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, progress * 2); // 淡入效果
+        this.renderer.drawCard(this.card, currentX, currentY - arc, false);
+        ctx.restore();
+    }
+}
+
+// 卡牌飞出动画
+class CardFlyOutAnimation {
+    constructor(card, startX, startY, endX, endY, renderer, delay = 0) {
+        this.card = card;
+        this.startX = startX;
+        this.startY = startY;
+        this.endX = endX;
+        this.endY = endY;
+        this.renderer = renderer;
+        this.delay = delay; // 延迟时间（毫秒）
+        this.time = -delay; // 从负值开始，实现延迟效果
+        this.duration = 200; // 0.2秒
+        this.finished = false;
+    }
+
+    update(deltaTime) {
+        this.time += deltaTime;
+        if (this.time >= this.duration) {
+            this.finished = true;
+            return;
+        }
+    }
+
+    render(ctx) {
+        // 延迟期间不渲染
+        if (this.time < 0) return;
+
+        const progress = this.time / this.duration;
+
+        // 使用缓动函数（ease-in）
+        const easeProgress = progress * progress;
+
+        // 计算当前位置
+        const currentX = this.startX + (this.endX - this.startX) * easeProgress;
+        const currentY = this.startY + (this.endY - this.startY) * easeProgress;
+
+        // 添加轻微上弧线
+        const arc = Math.sin(progress * Math.PI) * 20;
+
+        // 缩小效果（1.0 → 0.8）
+        const scale = 1.0 - progress * 0.2;
+
+        // 轻微旋转（-5°到+5°随机）
+        const rotation = (Math.random() - 0.5) * 0.1 * progress;
+
+        // 绘制卡牌
+        ctx.save();
+        ctx.globalAlpha = 1.0 - progress * 0.3; // 轻微淡出
+        ctx.translate(currentX + this.renderer.cardWidth / 2, currentY - arc + this.renderer.cardHeight / 2);
+        ctx.rotate(rotation);
+        ctx.scale(scale, scale);
+        ctx.translate(-(currentX + this.renderer.cardWidth / 2), -(currentY - arc + this.renderer.cardHeight / 2));
+        this.renderer.drawCard(this.card, currentX, currentY - arc, false);
         ctx.restore();
     }
 }

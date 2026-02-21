@@ -279,6 +279,8 @@ class GameState {
         this.lastScore = 0;          // 上次得分
         this.gameOver = false;       // 游戏是否结束
         this.drawnCardsThisRound = 0; // 本回合抽取的牌数
+        this.hideHandCards = false;  // 是否隐藏手牌（用于动画播放）
+        this.landedCardIndices = []; // 已着陆的卡牌索引（用于飞入动画）
 
         // 关卡积分系统
         this.levelScore = 0;         // 本关获得的总分数
@@ -792,8 +794,8 @@ class GameState {
                     failReason = '积分未达标';
                 } else if (this.level === 9 && this.usedPatternTypes.size < 4) {
                     failReason = '第9关要求使用至少4种不同牌型';
-                } else if (this.level === 10 && this.round > 2) {
-                    failReason = '第10关要求在2回合内出完牌';
+                } else if (this.level === 10 && this.round > this.maxRounds) {
+                    failReason = `第10关要求在${this.maxRounds}回合内出完牌`;
                 }
 
                 return { success: true, message: '手牌已出完，但' + failReason + '!' };
@@ -873,7 +875,26 @@ class GameState {
         // 连击衰减：更新本回合该牌型的使用次数
         this.patternComboCount[patternKey] = (this.patternComboCount[patternKey] || 0) + 1;
 
-        return { success: true };
+        // 大小王和火箭特殊效果
+        let specialEffect = null;
+        if (patternKey === 'SINGLE' && (selectedCards[0].rank === '小王' || selectedCards[0].rank === '大王')) {
+            // 单独打出大王或小王：显示牌库顶端3张牌供选择（如果牌库不足3张，显示所有剩余牌）
+            const availableCards = Math.min(3, this.deckCards.length);
+            if (availableCards > 0) {
+                specialEffect = {
+                    type: 'joker_single',
+                    cards: this.deckCards.slice(0, availableCards)
+                };
+            }
+        } else if (patternKey === 'ROCKET') {
+            // 打出火箭：显示所有点数供选择
+            specialEffect = {
+                type: 'rocket',
+                ranks: ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
+            };
+        }
+
+        return { success: true, specialEffect };
     }
 
     // 献祭者Boss：执行献祭逻辑
@@ -1182,12 +1203,14 @@ class GameState {
             }
         }
 
-        // 第10关额外条件：在2回合内出完牌（如果boss为完美主义者，依然限制2回合）
+        // 第10关额外条件：在规定回合内出完牌
+        // 注意：如果使用了回合沙漏，maxRounds会增加，这里应该使用maxRounds而不是硬编码的2
         if (this.level === 10) {
-            // 如果是完美主义者boss，已经有2回合限制，不需要额外检查
-            // 如果不是完美主义者，需要检查是否在2回合内完成
+            // 如果是完美主义者boss，已经有maxRounds限制，不需要额外检查
+            // 如果不是完美主义者，需要检查是否在maxRounds内完成
             if (!this.isBossLevel || this.bossRule !== 'perfectionist') {
-                if (this.round > 2) {
+                // 使用maxRounds而不是硬编码的2，这样回合沙漏道具才能生效
+                if (this.round > this.maxRounds) {
                     return false;
                 }
             }
@@ -1599,6 +1622,53 @@ class GameState {
         this.endRound();
 
         return penalty;
+    }
+
+    // 处理大小王特殊效果：从牌库顶端3张牌中选择1张
+    handleJokerSingleEffect(selectedCardIndex) {
+        // 检查牌库是否有足够的牌
+        const availableCards = Math.min(3, this.deckCards.length);
+        if (availableCards === 0) {
+            return { success: false, message: '牌库已空，无法选择' };
+        }
+
+        if (selectedCardIndex < 0 || selectedCardIndex >= availableCards) {
+            return { success: false, message: '无效的选择' };
+        }
+
+        // 从牌库中移除选中的牌并加入手牌
+        const selectedCard = this.deckCards.splice(selectedCardIndex, 1)[0];
+        this.handCards.push(selectedCard);
+
+        return {
+            success: true,
+            message: `获得了 ${selectedCard.toString()}`,
+            card: selectedCard
+        };
+    }
+
+    // 处理火箭特殊效果：选择任意点数获得1张该点数的牌
+    handleRocketEffect(selectedRank) {
+        const validRanks = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+        if (!validRanks.includes(selectedRank)) {
+            return { success: false, message: '无效的点数选择' };
+        }
+
+        // 随机生成一张该点数的牌
+        const suits = ['hearts', 'spades', 'diamonds', 'clubs'];
+        const randomSuit = suits[Math.floor(Math.random() * suits.length)];
+
+        // 检查是否为升级牌（30%概率）
+        const isUpgraded = this.upgradedCardRanks.includes(selectedRank) && Math.random() < 0.3;
+
+        const newCard = new Card(selectedRank, randomSuit, isUpgraded);
+        this.handCards.push(newCard);
+
+        return {
+            success: true,
+            message: `获得了 ${newCard.toString()}`,
+            card: newCard
+        };
     }
 
     // 应用Boss关奖励
